@@ -1,41 +1,48 @@
 # PokeChampions Helper
 
-App Expo (React Native + TypeScript) para fotografiar un resumen de batalla Pokémon, detectar el nombre (OCR on-device en roadmap) y mostrar datos básicos vía [PokéAPI](https://pokeapi.co/) usando [pokenode-ts](https://github.com/Gabb-c/pokenode-ts).
+Expo app (React Native + TypeScript) to photograph a Pokémon battle summary, detect the Pokémon name (on-device OCR on the roadmap), and show basic stats from [PokéAPI](https://pokeapi.co/) via [pokenode-ts](https://github.com/Gabb-c/pokenode-ts).
 
-## Requisitos
+## Requirements
 
-- Node.js **≥ 20.19.4** (recomendado; el proyecto usa Expo SDK 54)
-- Xcode / Android Studio para builds nativos con `expo prebuild`
+- Node.js **≥ 20.19.4** (recommended; Expo SDK 54)
+- Xcode / Android Studio for native builds with `expo prebuild`
 
-## Desarrollo
+## Development
 
 ```bash
 npm install
 npx expo start
 ```
 
-Con módulos nativos (cámara, dev client), en dispositivo o simulador:
+With native modules (camera, dev client), use a device or simulator:
 
 ```bash
 npx expo run:ios
-# o
+# or
 npx expo run:android
 ```
 
 ## Scripts
 
-| Script        | Descripción              |
-| ------------- | ------------------------ |
-| `npm start`   | Metro + Expo             |
-| `npm run lint`| ESLint (Expo flat config)|
+| Script                 | Description                 |
+| ---------------------- | --------------------------- |
+| `npm start`            | Metro + Expo                |
+| `npm run lint`         | ESLint (Expo flat config)   |
+| `npm run typecheck`    | TypeScript (`tsc --noEmit`) |
+| `npm run format`       | Format with Prettier        |
+| `npm run format:check` | Verify Prettier formatting  |
 
-## Estructura
+## Documentation
 
-- `app/` — rutas Expo Router
-- `src/entities` — modelos de dominio
-- `src/shared/api` — cliente PokéAPI y repositorio
-- `src/features/battle-scan` — pantalla de escaneo
+Technical docs (English): [docs/README.md](docs/README.md).
 
-## Licencia
+## Project layout
 
-Private (ajusta según tu organización).
+- `app/` — Expo Router routes
+- `src/entities` — domain models
+- `src/shared/api` — PokéAPI client and repository
+- `src/features/battle-scan` — scan screen
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
