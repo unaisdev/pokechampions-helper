@@ -88,12 +88,7 @@ export function ChangePokemonModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <ScrollView
           style={styles.scroll}
@@ -104,8 +99,8 @@ export function ChangePokemonModal({
             <Text style={styles.title}>Cambiar Pokémon</Text>
             <Text style={styles.context}>{contextLabel}</Text>
             <Text style={styles.hint}>
-              Si hay varias formas en PokéAPI, elige una abajo. Si quieres otro Pokémon distinto, usa el
-              buscador.
+              Si hay varias formas en PokéAPI, elige una abajo. Si quieres otro Pokémon distinto,
+              usa el buscador.
             </Text>
 
             {loadingForms ? (
