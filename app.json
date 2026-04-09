@@ -42,6 +42,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0ebac5a2-60f9-4848-888e-4e895130397f"
+      }
+    },
+    "owner": "seretide"
   }
 }
