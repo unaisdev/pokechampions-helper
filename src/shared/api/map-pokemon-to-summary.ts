@@ -1,9 +1,17 @@
 import type { Pokemon } from 'pokenode-ts';
 
-import type { PokemonSummary } from '@src/entities/pokemon-summary';
+import type { PokemonMegaFormOption, PokemonSummary } from '@src/entities/pokemon-summary';
 import { parseTypeIdFromPokeApiUrl, pokeApiTypeIconUrl } from '@src/shared/lib/type-sprites';
 
-export function mapPokemonToSummary(pokemon: Pokemon): PokemonSummary {
+export type PokemonSummarySpeciesMeta = {
+  speciesDefaultFormSlug: string;
+  megaForms: PokemonMegaFormOption[];
+};
+
+export function mapPokemonToSummary(
+  pokemon: Pokemon,
+  speciesMeta: PokemonSummarySpeciesMeta,
+): PokemonSummary {
   const types = [...pokemon.types]
     .sort((a, b) => a.slot - b.slot)
     .map((t) => {
@@ -14,12 +22,19 @@ export function mapPokemonToSummary(pokemon: Pokemon): PokemonSummary {
       };
     });
 
-  const stats = pokemon.stats
-    .map((s) => ({
-      name: s.stat.name,
-      baseStat: s.base_stat,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const stats = pokemon.stats.map((s) => ({
+    name: s.stat.name,
+    baseStat: s.base_stat,
+  }));
+
+  const abilities = [...pokemon.abilities]
+    .sort((a, b) => a.slot - b.slot)
+    .map((a) => ({
+      name: a.ability.name,
+      isHidden: a.is_hidden,
+      slot: a.slot,
+      shortEffect: null as string | null,
+    }));
 
   return {
     id: pokemon.id,
@@ -30,7 +45,11 @@ export function mapPokemonToSummary(pokemon: Pokemon): PokemonSummary {
       null,
     types,
     stats,
+    abilities,
+    baseExperience: pokemon.base_experience,
     heightDm: pokemon.height,
     weightHg: pokemon.weight,
+    speciesDefaultFormSlug: speciesMeta.speciesDefaultFormSlug,
+    megaForms: speciesMeta.megaForms,
   };
 }
