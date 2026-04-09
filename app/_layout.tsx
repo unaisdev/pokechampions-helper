@@ -7,6 +7,13 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { vexo } from 'vexo-analytics';
+
+// Initialize Vexo at the root level, outside of any component
+// Recommended to wrap in production-only check
+if (__DEV__ === false) {
+  vexo('8c260369-8d30-4466-995c-614b9aa1c74b');
+}
 
 export {
   // Catch any errors thrown by the Layout component.

@@ -86,7 +86,8 @@ export function BattleScanScreen() {
       return;
     }
 
-    const normSlotSlug = (raw: string) => normalizePokemonNameQuery(raw) || raw.trim().toLowerCase();
+    const normSlotSlug = (raw: string) =>
+      normalizePokemonNameQuery(raw) || raw.trim().toLowerCase();
 
     const ourInit: TeamSlotFetch[] = teamScan.nuestro_equipo.map((slug) => {
       const key = normSlotSlug(slug);
@@ -135,7 +136,10 @@ export function BattleScanScreen() {
       );
     }
 
-    void Promise.all([fetchSide(ourInit, setOurTeamSlots), fetchSide(rivalInit, setRivalTeamSlots)]);
+    void Promise.all([
+      fetchSide(ourInit, setOurTeamSlots),
+      fetchSide(rivalInit, setRivalTeamSlots),
+    ]);
 
     return () => {
       cancelled = true;
@@ -186,43 +190,45 @@ export function BattleScanScreen() {
     })();
   }, []);
 
-  const selectBattleFormSlug = useCallback((side: 'our' | 'rival', index: number, newSlug: string) => {
-    const setter = side === 'our' ? setOurTeamSlots : setRivalTeamSlots;
-    let previousFormSlug = '';
-    setter((prev) => {
-      previousFormSlug = prev[index]?.formSlug ?? '';
-      return prev.map((row, i) =>
-        i === index ? { ...row, formSlug: newSlug, loading: true, error: null } : row,
-      );
-    });
-    void (async () => {
-      try {
-        const data = await defaultPokemonRepository.getByName(newSlug);
-        setter((prev) =>
-          prev.map((row, i) =>
-            i === index ? { ...row, loading: false, error: null, data } : row,
-          ),
+  const selectBattleFormSlug = useCallback(
+    (side: 'our' | 'rival', index: number, newSlug: string) => {
+      const setter = side === 'our' ? setOurTeamSlots : setRivalTeamSlots;
+      let previousFormSlug = '';
+      setter((prev) => {
+        previousFormSlug = prev[index]?.formSlug ?? '';
+        return prev.map((row, i) =>
+          i === index ? { ...row, formSlug: newSlug, loading: true, error: null } : row,
         );
-      } catch (e) {
-        let message = 'No se pudo cargar.';
-        if (e instanceof PokemonNotFoundError) {
-          message = `PokéAPI: «${newSlug}» no encontrado.`;
-        } else if (e instanceof PokemonNetworkError) {
-          message = 'Error de red al consultar PokéAPI.';
+      });
+      void (async () => {
+        try {
+          const data = await defaultPokemonRepository.getByName(newSlug);
+          setter((prev) =>
+            prev.map((row, i) =>
+              i === index ? { ...row, loading: false, error: null, data } : row,
+            ),
+          );
+        } catch (e) {
+          let message = 'No se pudo cargar.';
+          if (e instanceof PokemonNotFoundError) {
+            message = `PokéAPI: «${newSlug}» no encontrado.`;
+          } else if (e instanceof PokemonNetworkError) {
+            message = 'Error de red al consultar PokéAPI.';
+          }
+          setter((prev) =>
+            prev.map((row, i) =>
+              i === index
+                ? { ...row, formSlug: previousFormSlug, loading: false, error: message }
+                : row,
+            ),
+          );
         }
-        setter((prev) =>
-          prev.map((row, i) =>
-            i === index
-              ? { ...row, formSlug: previousFormSlug, loading: false, error: message }
-              : row,
-          ),
-        );
-      }
-    })();
-  }, []);
+      })();
+    },
+    [],
+  );
 
-  const anyLoading =
-    ourTeamSlots.some((s) => s.loading) || rivalTeamSlots.some((s) => s.loading);
+  const anyLoading = ourTeamSlots.some((s) => s.loading) || rivalTeamSlots.some((s) => s.loading);
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -254,10 +260,7 @@ export function BattleScanScreen() {
         <Text style={styles.primaryBtnText}>Importar JSON (Gemini)</Text>
       </Pressable>
 
-      <Pressable
-        style={styles.randomDemoBtn}
-        onPress={() => setTeamScan(randomDemoTeamScan())}
-      >
+      <Pressable style={styles.randomDemoBtn} onPress={() => setTeamScan(randomDemoTeamScan())}>
         <Text style={styles.randomDemoBtnText}>Probar con equipos aleatorios</Text>
       </Pressable>
 

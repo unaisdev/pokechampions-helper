@@ -14,9 +14,5 @@ export function abilityShortEffectForLocales(ability: Ability, locales: string[]
 }
 
 function normalizeAbilityEffectText(s: string): string {
-  return s
-    .replace(/\f/g, ' ')
-    .replace(/\n+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return s.replace(/\f/g, ' ').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
 }

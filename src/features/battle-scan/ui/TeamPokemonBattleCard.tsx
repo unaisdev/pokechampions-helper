@@ -62,8 +62,7 @@ export function TeamPokemonBattleCard({
   const { width: windowWidth } = useWindowDimensions();
   const changeActionAsIcon = windowWidth < CHANGE_ACTION_ICON_BREAKPOINT;
   const accent = variant === 'ours' ? styles.accentOurs : styles.accentRival;
-  const chipAccent =
-    variant === 'ours' ? styles.formChipAccentOurs : styles.formChipAccentRival;
+  const chipAccent = variant === 'ours' ? styles.formChipAccentOurs : styles.formChipAccentRival;
   const titleSlug = summary?.name ?? slug;
   const formOptions =
     summary && summary.megaForms.length > 0
@@ -73,19 +72,18 @@ export function TeamPokemonBattleCard({
   const changeActionLabel = summary ? 'Cambiar Pokémon' : 'Cambiar forma';
   const changeIconColor = variant === 'ours' ? '#1d4ed8' : '#b91c1c';
 
-  const battleStatsForRange = summary
-    ? sortStatsForBattleDisplay(summary.stats)
-    : [];
+  const battleStatsForRange = summary ? sortStatsForBattleDisplay(summary.stats) : [];
   const statVisualScaleMax =
     battleStatsForRange.length > 0
       ? Math.max(
           POKEMON_BASE_STAT_BAR_MAX,
-          ...battleStatsForRange.map((s) =>
-            pokemonStatMinMaxIvEvNatureSpread({
-              base: s.baseStat,
-              level: POKEMON_STAT_RANGE_DISPLAY_LEVEL,
-              isHp: isHpStatName(s.name),
-            }).max,
+          ...battleStatsForRange.map(
+            (s) =>
+              pokemonStatMinMaxIvEvNatureSpread({
+                base: s.baseStat,
+                level: POKEMON_STAT_RANGE_DISPLAY_LEVEL,
+                isHp: isHpStatName(s.name),
+              }).max,
           ),
           1,
         )
@@ -120,7 +118,9 @@ export function TeamPokemonBattleCard({
               <Text
                 style={[
                   styles.changePokemonBtnText,
-                  variant === 'ours' ? styles.changePokemonBtnTextOurs : styles.changePokemonBtnTextRival,
+                  variant === 'ours'
+                    ? styles.changePokemonBtnTextOurs
+                    : styles.changePokemonBtnTextRival,
                 ]}
                 numberOfLines={2}
               >
@@ -153,7 +153,11 @@ export function TeamPokemonBattleCard({
             {summary.types.map((t) => (
               <View key={t.name} style={styles.typeWrap}>
                 {t.iconUrl ? (
-                  <Image source={{ uri: t.iconUrl }} style={styles.typeIcon} accessibilityLabel={t.name} />
+                  <Image
+                    source={{ uri: t.iconUrl }}
+                    style={styles.typeIcon}
+                    accessibilityLabel={t.name}
+                  />
                 ) : (
                   <Text style={styles.typeFallback}>{t.name}</Text>
                 )}
@@ -162,7 +166,8 @@ export function TeamPokemonBattleCard({
           </View>
 
           <Text style={styles.meta}>
-            {summary.heightDm / 10} m · {summary.weightHg / 10} kg · Exp. base {summary.baseExperience}
+            {summary.heightDm / 10} m · {summary.weightHg / 10} kg · Exp. base{' '}
+            {summary.baseExperience}
           </Text>
 
           {summary.megaForms.length > 0 ? (
@@ -196,10 +201,7 @@ export function TeamPokemonBattleCard({
                       }}
                     >
                       <Text
-                        style={[
-                          styles.formChipLabel,
-                          selected && styles.formChipLabelSelected,
-                        ]}
+                        style={[styles.formChipLabel, selected && styles.formChipLabelSelected]}
                         numberOfLines={1}
                       >
                         {opt.label}
@@ -221,9 +223,7 @@ export function TeamPokemonBattleCard({
                   {formatAbilityLabel(a.name)}
                   {a.isHidden ? ' · oculta' : ''}
                 </Text>
-                {a.shortEffect ? (
-                  <Text style={styles.abilitySubtitle}>{a.shortEffect}</Text>
-                ) : null}
+                {a.shortEffect ? <Text style={styles.abilitySubtitle}>{a.shortEffect}</Text> : null}
               </View>
             ))
           )}
@@ -276,18 +276,15 @@ export function TeamPokemonBattleCard({
             const widthPct = span === 0 ? 1.25 : Math.max(widthPctRaw, 0.5);
             const maxFillPct = Math.min(100, (statMax / statVisualScaleMax) * 100);
             const baseFillPct = Math.min(100, (s.baseStat / statVisualScaleMax) * 100);
-            const rangeBandTint = variant === 'ours' ? styles.statRangeBandOurs : styles.statRangeBandRival;
+            const rangeBandTint =
+              variant === 'ours' ? styles.statRangeBandOurs : styles.statRangeBandRival;
             return (
               <View key={s.name} style={styles.statRow}>
                 <Text style={styles.statLabel}>{statLabelEs(s.name)}</Text>
                 <View style={styles.statBarStack}>
                   <View style={styles.statTrack}>
                     <View
-                      style={[
-                        styles.statBaseFill,
-                        rangeBandTint,
-                        { width: `${baseFillPct}%` },
-                      ]}
+                      style={[styles.statBaseFill, rangeBandTint, { width: `${baseFillPct}%` }]}
                     />
                   </View>
                   <View style={styles.statTrack}>
@@ -311,7 +308,10 @@ export function TeamPokemonBattleCard({
                 </View>
                 <View style={styles.statValuesCol}>
                   <Text style={styles.statValue}>{s.baseStat}</Text>
-                  <Text style={styles.statRangeValues} accessibilityLabel={`Rango ${statMin} a ${statMax}`}>
+                  <Text
+                    style={styles.statRangeValues}
+                    accessibilityLabel={`Rango ${statMin} a ${statMax}`}
+                  >
                     {statMin}–{statMax}
                   </Text>
                 </View>

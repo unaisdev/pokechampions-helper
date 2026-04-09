@@ -35,11 +35,10 @@ export function pokemonFinalStatAtLevel(params: {
 }
 
 /** Rango posible con IV 0 / EV 0 … IV 31 / EV 252 y naturaleza neutra. */
-export function pokemonStatMinMaxNeutral(params: {
-  base: number;
-  level: number;
-  isHp: boolean;
-}): { min: number; max: number } {
+export function pokemonStatMinMaxNeutral(params: { base: number; level: number; isHp: boolean }): {
+  min: number;
+  max: number;
+} {
   const { base, level, isHp } = params;
   const min = pokemonFinalStatAtLevel({
     base,
