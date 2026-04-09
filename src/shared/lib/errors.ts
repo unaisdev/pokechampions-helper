@@ -8,7 +8,10 @@ export class PokemonNotFoundError extends Error {
 
 export class PokemonNetworkError extends Error {
   readonly code = 'POKEMON_NETWORK' as const;
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message);
     this.name = 'PokemonNetworkError';
   }

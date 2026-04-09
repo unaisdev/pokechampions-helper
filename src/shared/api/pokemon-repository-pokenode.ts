@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { isAxiosError } from 'axios';
 import type { PokemonClient } from 'pokenode-ts';
 
 import type { PokemonSummary } from '@src/entities/pokemon-summary';
@@ -9,7 +9,7 @@ import { normalizePokemonNameQuery } from '@src/shared/lib/pokemon-name';
 import { mapPokemonToSummary } from './map-pokemon-to-summary';
 import type { PokemonRepository } from './pokemon-repository';
 
-const STORAGE_PREFIX = '@pc/pokemon_cache/v1/';
+const STORAGE_PREFIX = '@pc/pokemon_cache/v2/';
 
 export class PokemonRepositoryPokenode implements PokemonRepository {
   constructor(private readonly client: PokemonClient) {}
@@ -36,7 +36,7 @@ export class PokemonRepositoryPokenode implements PokemonRepository {
       await AsyncStorage.setItem(storageKey, JSON.stringify(summary));
       return summary;
     } catch (e) {
-      if (axios.isAxiosError(e) && e.response?.status === 404) {
+      if (isAxiosError(e) && e.response?.status === 404) {
         throw new PokemonNotFoundError(key);
       }
       throw new PokemonNetworkError('Could not reach PokéAPI.', e);

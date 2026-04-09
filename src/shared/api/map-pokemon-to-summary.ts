@@ -1,11 +1,18 @@
 import type { Pokemon } from 'pokenode-ts';
 
 import type { PokemonSummary } from '@src/entities/pokemon-summary';
+import { parseTypeIdFromPokeApiUrl, pokeApiTypeIconUrl } from '@src/shared/lib/type-sprites';
 
 export function mapPokemonToSummary(pokemon: Pokemon): PokemonSummary {
   const types = [...pokemon.types]
     .sort((a, b) => a.slot - b.slot)
-    .map((t) => t.type.name);
+    .map((t) => {
+      const id = parseTypeIdFromPokeApiUrl(t.type.url);
+      return {
+        name: t.type.name,
+        iconUrl: id != null ? pokeApiTypeIconUrl(id) : null,
+      };
+    });
 
   const stats = pokemon.stats
     .map((s) => ({
@@ -17,7 +24,10 @@ export function mapPokemonToSummary(pokemon: Pokemon): PokemonSummary {
   return {
     id: pokemon.id,
     name: pokemon.name,
-    spriteUrl: pokemon.sprites.front_default ?? pokemon.sprites.other?.['official-artwork']?.front_default ?? null,
+    spriteUrl:
+      pokemon.sprites.front_default ??
+      pokemon.sprites.other?.['official-artwork']?.front_default ??
+      null,
     types,
     stats,
     heightDm: pokemon.height,

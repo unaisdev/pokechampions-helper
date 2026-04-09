@@ -6,11 +6,18 @@ export type PokemonStatRow = {
   baseStat: number;
 };
 
+/** One elemental type on the Pokémon (slot order preserved). */
+export type PokemonTypeSlot = {
+  name: string;
+  /** Small icon from PokeAPI/sprites; null if type id could not be parsed. */
+  iconUrl: string | null;
+};
+
 export type PokemonSummary = {
   id: number;
   name: string;
   spriteUrl: string | null;
-  types: string[];
+  types: PokemonTypeSlot[];
   stats: PokemonStatRow[];
   /** Decimetres */
   heightDm: number;
