@@ -15,16 +15,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: yarn
+
+      - name: Enable Yarn (classic, matches yarn.lock v1)
+        run: corepack enable && corepack prepare yarn@1.22.22 --activate
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: yarn lint
 
       - name: Typecheck
-        run: npm run typecheck
+        run: yarn typecheck
 
       - name: Prettier
-        run: npm run format:check
+        run: yarn format:check
