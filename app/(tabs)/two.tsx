@@ -7,11 +7,11 @@ export default function InfoTabScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>PokeChampions Helper</Text>
       <Text style={styles.body}>
-        MVP: captura del resumen de batalla, detección del nombre (OCR on-device próximamente) y datos vía
-        PokéAPI.
+        MVP: captura del resumen de batalla, detección del nombre (OCR on-device próximamente) y
+        datos vía PokéAPI.
       </Text>
       <Text style={styles.link} onPress={() => Linking.openURL('https://pokeapi.co/docs/v2')}>
-        PokéAPI v2 docs
+        Documentación PokéAPI v2
       </Text>
     </View>
   );
