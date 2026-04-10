@@ -1,0 +1,160 @@
+{
+  "tabs": {
+    "analyze": "分析",
+    "info": "情報"
+  },
+  "info": {
+    "title": "PokeChampions Helper",
+    "heroTagline": "チームプレビュー用の相棒アプリ",
+    "whoTitle": "私たちについて",
+    "whoBody": "私たちはプレイヤー向けの小さく実用的なツールを作るポケモンファンです。PokeChampions Helper は、試合の準備や合間にチーム情報を読みやすく使いやすくすることを目指しています。",
+    "whyTitle": "作った理由",
+    "whyBody": "バトル画面やチームプレビューには一度に多くの情報が表示されます。スクショやエクスポートから、タイプ・能力値・わざなどを整理されたデータとして扱える流れを作りたかったのです。ウィキや計算ツールを行き来しなくても済むように。",
+    "audienceTitle": "こんな方におすすめ",
+    "audienceBody": "ランクマでもカジュアルでも、チームプレビューやオンラインバトルを使い、試合の前後にもっと早く双方の構成を把握したい方におすすめです。",
+    "developerTitle": "開発",
+    "developerCredit": "開発: @unaisdev（Instagram は @unaicanales）。",
+    "collaboratorTitle": "コラボレーター",
+    "collaboratorCredit": "コラボ: @elhortelanoo（Twitch・YouTube・TikTok・Instagram は同じハンドル名）。",
+    "social": {
+      "developer": {
+        "instagram": "Instagram（@unaicanales）",
+        "twitter": "X（@unaisdev）",
+        "github": "GitHub（@unaisdev）"
+      },
+      "collaborator": {
+        "twitch": "Twitch（@elhortelanoo）",
+        "youtube": "YouTube（@elhortelanoo）",
+        "tiktok": "TikTok（@elhortelanoo）",
+        "instagram": "Instagram（@elhortelanoo）"
+      }
+    },
+    "disclaimerTitle": "クレジットと免責",
+    "disclaimerBody": "ポケモン、キャラクター名、関連商標は任天堂、ゲームフリーク、株式会社ポケモンの財産です。本アプリは独立したファンプロジェクトであり、これらの企業と提携・承認されたものではありません。\n\nゲーム内データはコミュニティが維持する REST API「PokéAPI」から読み込まれます（株式会社ポケモンとは無関係）。当アプリが案内するプロンプトで Google Gemini を利用する場合、その処理は Google のサービスと規約に従います。スクリーンショットは当アプリのサーバーにはアップロードされません。",
+    "pokeapiDocs": "PokéAPI v2 ドキュメント"
+  },
+  "language": {
+    "label": "言語",
+    "es": "ES",
+    "en": "EN",
+    "ja": "JA"
+  },
+  "theme": {
+    "label": "テーマ",
+    "light": "ライト",
+    "dark": "ダーク"
+  },
+  "settings": {
+    "title": "設定",
+    "openA11y": "設定を開く",
+    "closeA11y": "設定を閉じる"
+  },
+  "battle": {
+    "screenTitle": "チームプレビュー",
+    "lead": "ゲーム画面のスクショから Gemini で生成した JSON を取り込んでください。アプリはバトル画面のように両チームを表示し、各ポケモンは PokéAPI のデータで補完します。",
+    "heroExampleCaption": "Gemini 用の画像例（左が自分のチーム、右が相手）:",
+    "heroExampleA11y": "ポケモンが2列に並んだバトルプレビュー画面の例",
+    "importJson": "JSON を取り込む（Gemini）",
+    "randomDemo": "ランダムなデモチームを試す",
+    "loadingPokeapi": "PokéAPI から読み込み中…",
+    "columnOurs": "自分のチーム",
+    "columnRival": "相手",
+    "emptyColumn": "JSON にポケモンがありません",
+    "clearTeams": "取り込んだチームを消去",
+    "emptyHint": "まだチームがありません。「JSON を取り込む」をタップして Gemini の応答を貼り付けてください。",
+    "changeContextOur": "自分のチーム — スロット {{slot}}",
+    "changeContextRival": "相手 — スロット {{slot}}",
+    "geminiModalTitle": "Gemini — 同じ JSON 形式",
+    "geminiStep1": "1) 「プロンプトをコピー」をタップ（手順と Gemini が守るべき形式）。",
+    "geminiStep2": "2) 「Gemini を開き」、チームのスクショを添付してチャットにプロンプトを貼り付けます。",
+    "geminiExampleCaption": "画像のイメージ（左が自分 / 右が相手）:",
+    "geminiStep3": "3) Gemini が返したら JSON のみをコピーし、下に貼り付けて「適用」をタップ。",
+    "copyPrompt": "プロンプトをコピー",
+    "openGemini": "Gemini を開く",
+    "geminiJsonLabel": "Gemini の応答（JSON）",
+    "applyResponse": "適用",
+    "close": "閉じる",
+    "promptCopied": "プロンプトをクリップボードにコピーしました",
+    "parseError": "応答を読み取れませんでした。",
+    "errorLoad": "読み込めませんでした。",
+    "errorNotFound": "PokéAPI: 「{{query}}」が見つかりません。",
+    "errorNetwork": "PokéAPI への通信エラーです。"
+  },
+  "changePokemon": {
+    "title": "ポケモンを変更",
+    "hint": "PokéAPI に複数のフォームがある場合は下から選んでください。別のポケモンにする場合は検索を使います。",
+    "loadingForms": "利用可能なフォームを読み込み中…",
+    "formsLabel": "利用可能なフォーム",
+    "currentSuffix": " · 現在",
+    "searchLabel": "ポケモンを検索",
+    "searchHint": "英語名または PokéAPI のスラッグ（例: charizard, palafin-hero）。",
+    "searchPlaceholder": "例: palafin-hero",
+    "searchEmpty": "PokéAPI の名前またはスラッグを入力してください。",
+    "searchApply": "検索して適用",
+    "close": "閉じる"
+  },
+  "card": {
+    "changePokemon": "ポケモンを変更",
+    "changeForm": "フォームを変更",
+    "megaBadge": "メガシンカ",
+    "battleForm": "バトルフォーム",
+    "defaultForm": "通常フォーム",
+    "abilitiesSection": "考えられる特性",
+    "hiddenAbility": " · 隠れ",
+    "movesTitle": "わざ",
+    "movesSubtitle": "習得可能 {{count}} 種 · タップで PokéAPI から読み込み",
+    "movesSubtitleEmpty": "このフォームにわざがありません（PokéAPI） · タップで確認",
+    "movesA11y": "わざ一覧、全 {{count}} 件",
+    "statsSection": "種族値と範囲（Lv. {{level}}）",
+    "statsInfoA11y": "Lv. {{level}} の種族値と範囲について",
+    "statsInfoTitle": "種族値と範囲（Lv. {{level}}）",
+    "statsInfoBody": "上段: 種族値。\n\n下段: Lv. {{level}} 時の範囲。\n• 最小: EV 最小かつ性格が下がる側。\n• 最大: EV 最大かつ性格が上がる側。",
+    "rangeA11y": "範囲 {{min}} 〜 {{max}}",
+    "meta": "身長 {{height}} m · 体重 {{weight}} kg · 基礎経験値 {{exp}}",
+    "compareStats": "比較",
+    "compareStatsA11y": "相手チームのポケモンと種族値を比較"
+  },
+  "compareModal": {
+    "title": "種族値の比較",
+    "hint": "PokéAPI の種族値です。各行は上段が共通スケール上の種族値、下段が下記レベルでの実数の範囲（IV/EV・性格補正はカードと同じ）です。種族値が高い方を強調します。BST は種族値の合計です。",
+    "statsCaption": "上段: 種族値。下段: Lv.{{level}} での実数レンジ（カードと同じ考え方）。",
+    "pickHint": "{{side}}のポケモンを選ぶ",
+    "bstTotal": "種族値合計（BST）",
+    "bstAhead": "BST +{{diff}} 有利",
+    "bstBehind": "BST −{{diff}} 不利",
+    "tie": "合計は同じ",
+    "noSelectableOpponent": "相手チームの読み込みがまだありません。PokéAPI の完了を待つか、取り込みエラーを確認してください。",
+    "waitLoad": "読み込み中…",
+    "close": "閉じる",
+    "closeA11y": "比較を閉じる"
+  },
+  "movesModal": {
+    "title": "わざ · {{name}}",
+    "hint": "詳細はこの一覧を開いたときに読み込まれます（チーム読み込み時ではありません）。読み込み後、タイプと分類で絞り込めます。",
+    "close": "閉じる",
+    "closeA11y": "わざ一覧を閉じる",
+    "searchPlaceholder": "わざを検索…",
+    "loadingMoves": "PokéAPI からわざを読み込み中…",
+    "loadingProgress": "{{loaded}} / {{total}} 件",
+    "errorLoad": "わざを読み込めませんでした。もう一度お試しください。",
+    "filterType": "タイプ",
+    "allTypes": "すべて",
+    "filterCategory": "分類",
+    "count": "{{total}} 件中 {{filtered}} 件",
+    "empty": "条件に一致するわざがありません。",
+    "emptyNoMoves": "このフォームにわざがありません。",
+    "filtersCollapsedSummaryDefault": "絞り込みなし",
+    "filtersCollapsedHint": "タップでフィルタを展開",
+    "expandFiltersA11y": "フィルタを展開、現在: {{summary}}",
+    "power": "威力 {{value}}",
+    "accuracy": "命中 {{value}}"
+  },
+  "damageClass": {
+    "physical": "物理",
+    "special": "特殊",
+    "status": "変化",
+    "unknown": "その他",
+    "all": "すべて",
+    "dash": "—"
+  }
+}
