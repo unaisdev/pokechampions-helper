@@ -116,8 +116,9 @@
   },
   "compareModal": {
     "title": "Comparar stats base",
-    "hint": "Stats base de PokéAPI. Cada fila: barra superior = valor base en la escala compartida; franja inferior = rango posible en combate al nivel indicado (IV/EV; sin PS la naturaleza usa ×0,9 / ×1,1), igual que en las tarjetas. El mayor base resalta la fila. BST = suma de stats base.",
-    "statsCaption": "Franja superior: stat base. Inferior: rango en combate a niv. {{level}} (mismas reglas que las tarjetas).",
+    "hint": "PokéAPI: tabla con valor base (número grande) y rango de combate al nivel indicado (IV/EV y naturaleza como en las tarjetas). El valor base mayor en cada fila se muestra más nítido.",
+    "statsCaption": "Número grande: stat base. Debajo: rango en combate a niv. {{level}} (mismas reglas que las tarjetas).",
+    "tableHeaderStat": "Estadística",
     "pickHint": "Elige un Pokémon de {{side}}",
     "bstTotal": "Suma de stats base (BST)",
     "bstAhead": "{{diff}} BST de ventaja",

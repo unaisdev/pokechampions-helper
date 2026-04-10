@@ -116,8 +116,9 @@
   },
   "compareModal": {
     "title": "Compare base stats",
-    "hint": "PokéAPI base stats. Each row: upper bar = base on the shared scale; lower track = possible in-battle values at the level below (IV/EV spread; non-HP uses hindering/boosting nature), like the team cards. Higher base wins the row highlight. BST is the sum of base stats.",
-    "statsCaption": "Upper track: base stat. Lower track: battle range at Lv. {{level}} (same rules as the cards).",
+    "hint": "PokéAPI: table with base stat (large number) and battle range at the level below (IV/EV and nature like the team cards). The higher base value in each row stays more prominent.",
+    "statsCaption": "Large number: base stat. Below: battle range at Lv. {{level}} (same rules as the cards).",
+    "tableHeaderStat": "Stat",
     "pickHint": "Choose a Pokémon from {{side}}",
     "bstTotal": "Total base stats (BST)",
     "bstAhead": "{{diff}} BST ahead",

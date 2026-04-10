@@ -13,10 +13,12 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PokemonStatRow } from '@src/entities/pokemon-summary';
-import { modalCardSizingStyle } from '@src/shared/lib/modal-layout';
+import {
+  MODAL_WIDE_LAYOUT_MIN_WIDTH,
+  modalCardSizingStyle,
+} from '@src/shared/lib/modal-layout';
 import { BackdropModal } from '@src/shared/ui/BackdropModal';
 import {
-  POKEMON_BASE_STAT_BAR_MAX,
   POKEMON_STAT_RANGE_DISPLAY_LEVEL,
   isHpStatName,
   pokemonStatMinMaxIvEvNatureSpread,
@@ -45,48 +47,17 @@ type Props = {
   opponents: CompareOpponentOption[];
 };
 
-function sumBaseStats(stats: PokemonStatRow[]): number {
-  return stats.reduce((acc, s) => acc + s.baseStat, 0);
-}
-
-function statVisualScaleMaxForPair(
-  a: PokemonStatRow[] | null,
-  b: PokemonStatRow[] | null,
-  level: number,
-): number {
-  const candidates: number[] = [POKEMON_BASE_STAT_BAR_MAX, 1];
-  const collect = (rows: PokemonStatRow[] | null) => {
-    if (!rows) {
-      return;
-    }
-    for (const s of rows) {
-      candidates.push(s.baseStat);
-      const { max } = pokemonStatMinMaxIvEvNatureSpread({
-        base: s.baseStat,
-        level,
-        isHp: isHpStatName(s.name),
-      });
-      candidates.push(max);
-    }
-  };
-  collect(a);
-  collect(b);
-  return Math.max(...candidates);
-}
-
 type BattleTint = 'ours' | 'rival';
 
-function CompareStatColumn({
+function CompareStatTableCell({
   base,
   statName,
-  scaleMax,
   level,
   tint,
   dimmed,
 }: {
   base: number;
   statName: string;
-  scaleMax: number;
   level: number;
   tint: BattleTint;
   dimmed: boolean;
@@ -98,48 +69,14 @@ function CompareStatColumn({
     isHp: isHpStatName(statName),
   });
   const rangeA11y = t('card.rangeA11y', { min: statMin, max: statMax });
-  const span = statMax - statMin;
-  const leftPct = (statMin / scaleMax) * 100;
-  const widthPctRaw = (span / scaleMax) * 100;
-  const widthPct = span === 0 ? 1.25 : Math.max(widthPctRaw, 0.5);
-  const maxFillPct = Math.min(100, (statMax / scaleMax) * 100);
-  const baseFillPct = Math.min(100, (base / scaleMax) * 100);
-  const rangeBandTint = tint === 'ours' ? styles.statRangeBandOurs : styles.statRangeBandRival;
   const labelTint = tint === 'ours' ? styles.colHeadOurs : styles.colHeadRival;
 
   return (
-    <View style={[styles.statColWrap, dimmed ? styles.statColDimmed : null]}>
-      <View style={styles.statBarStack}>
-        <View style={styles.statTrack}>
-          <View
-            style={[styles.statBaseFill, rangeBandTint, { width: `${baseFillPct}%` }]}
-          />
-        </View>
-        <View style={styles.statTrack}>
-          <View
-            style={[
-              styles.statRangeFillFromStart,
-              rangeBandTint,
-              styles.statRangeToMaxDimmed,
-              { width: `${maxFillPct}%` },
-            ]}
-          />
-          <View
-            style={[
-              styles.statRangeBand,
-              rangeBandTint,
-              styles.statRangeSpreadOpaque,
-              { left: `${leftPct}%`, width: `${widthPct}%` },
-            ]}
-          />
-        </View>
-      </View>
-      <View style={styles.statValuesColCompare}>
-        <Text style={[styles.statValueMain, labelTint]}>{base}</Text>
-        <Text style={styles.statValueRange} accessibilityLabel={rangeA11y}>
-          {statMin}–{statMax}
-        </Text>
-      </View>
+    <View style={[styles.statTableValueCell, dimmed ? styles.statTableValueDimmed : null]}>
+      <Text style={[styles.statTableBase, labelTint]}>{base}</Text>
+      <Text style={styles.statTableRange} accessibilityLabel={rangeA11y}>
+        {statMin}–{statMax}
+      </Text>
     </View>
   );
 }
@@ -158,7 +95,10 @@ export function PokemonCompareModal({
   const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const wideCardSizing = useMemo(() => modalCardSizingStyle(windowWidth), [windowWidth]);
+  const wideCardSizing = useMemo(
+    () => modalCardSizingStyle(windowWidth, { widthPercent: 35 }),
+    [windowWidth],
+  );
 
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -192,18 +132,46 @@ export function PokemonCompareModal({
   }, [opponentStats]);
 
   const level = POKEMON_STAT_RANGE_DISPLAY_LEVEL;
-  const statScaleMax = useMemo(
-    () => statVisualScaleMaxForPair(selfStats, opponentStats, level),
-    [selfStats, opponentStats, level],
-  );
-
-  const selfBst = useMemo(() => sumBaseStats(selfStats), [selfStats]);
-  const oppBst = opponentStats ? sumBaseStats(opponentStats) : null;
 
   const selfLabelStyle = selfVariant === 'ours' ? styles.colHeadOurs : styles.colHeadRival;
   const otherLabelStyle = selfVariant === 'ours' ? styles.colHeadRival : styles.colHeadOurs;
   const leftTint: BattleTint = selfVariant === 'ours' ? 'ours' : 'rival';
   const rightTint: BattleTint = selfVariant === 'ours' ? 'rival' : 'ours';
+
+  const renderCompareOpponentChips = () =>
+    opponents.map((o, i) => {
+      const selectable = o.stats != null && !o.loading;
+      const selected = i === selectedIdx;
+      return (
+        <Pressable
+          key={`opp-${o.slot}-${i}`}
+          accessibilityRole="button"
+          accessibilityState={{ selected, disabled: !selectable }}
+          disabled={!selectable}
+          onPress={() => setSelectedIdx(i)}
+          style={[
+            styles.chip,
+            selectable
+              ? selfVariant === 'ours'
+                ? styles.accentOurs
+                : styles.accentRival
+              : styles.chipDisabled,
+            selected && selectable && styles.chipSelected,
+          ]}
+        >
+          {o.loading ? (
+            <ActivityIndicator size="small" color={theme.colors.ionIconMuted} />
+          ) : o.spriteUrl ? (
+            <Image source={{ uri: o.spriteUrl }} style={styles.chipSprite} />
+          ) : (
+            <View style={styles.chipSpritePlaceholder} />
+          )}
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.chipName}>
+            {o.displayName}
+          </Text>
+        </Pressable>
+      );
+    });
 
   const body =
     selectableIndices.length === 0 ? (
@@ -215,44 +183,12 @@ export function PokemonCompareModal({
         </Text>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={windowWidth >= MODAL_WIDE_LAYOUT_MIN_WIDTH}
           style={styles.chipScroll}
           contentContainerStyle={styles.chipScrollContent}
         >
-          {opponents.map((o, i) => {
-            const selectable = o.stats != null && !o.loading;
-            const selected = i === selectedIdx;
-            return (
-              <Pressable
-                key={`opp-${o.slot}-${i}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected, disabled: !selectable }}
-                disabled={!selectable}
-                onPress={() => setSelectedIdx(i)}
-                style={[
-                  styles.chip,
-                  selectable
-                    ? selfVariant === 'ours'
-                      ? styles.accentOurs
-                      : styles.accentRival
-                    : styles.chipDisabled,
-                  selected && selectable && styles.chipSelected,
-                ]}
-              >
-                {o.loading ? (
-                  <ActivityIndicator size="small" color={theme.colors.ionIconMuted} />
-                ) : o.spriteUrl ? (
-                  <Image source={{ uri: o.spriteUrl }} style={styles.chipSprite} />
-                ) : (
-                  <View style={styles.chipSpritePlaceholder} />
-                )}
-                <Text style={styles.chipSlot}>#{o.slot}</Text>
-                <Text numberOfLines={2} style={styles.chipName}>
-                  {o.displayName}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {renderCompareOpponentChips()}
         </ScrollView>
 
         {opponent?.error ? <Text style={styles.errorInline}>{opponent.error}</Text> : null}
@@ -283,94 +219,81 @@ export function PokemonCompareModal({
               </View>
             </View>
 
-            <View style={styles.bstRow}>
-              <Text style={styles.bstLabel}>{t('compareModal.bstTotal')}</Text>
-              <View style={styles.bstValues}>
-                <Text
-                  style={[
-                    styles.bstValue,
-                    selfLabelStyle,
-                    oppBst != null && selfBst > oppBst ? styles.valueWin : null,
-                    oppBst != null && selfBst < oppBst ? styles.valueLose : null,
-                  ]}
-                >
-                  {selfBst}
-                </Text>
-                <Text style={styles.bstSep}>—</Text>
-                <Text
-                  style={[
-                    styles.bstValue,
-                    otherLabelStyle,
-                    oppBst != null && oppBst > selfBst ? styles.valueWin : null,
-                    oppBst != null && oppBst < selfBst ? styles.valueLose : null,
-                  ]}
-                >
-                  {oppBst}
-                </Text>
-              </View>
-              {oppBst != null && selfBst !== oppBst ? (
-                <Text style={styles.bstDelta}>
-                  {selfBst > oppBst
-                    ? t('compareModal.bstAhead', { diff: selfBst - oppBst })
-                    : t('compareModal.bstBehind', { diff: oppBst - selfBst })}
-                </Text>
-              ) : (
-                <Text style={styles.bstDeltaMuted}>{t('compareModal.tie')}</Text>
-              )}
-            </View>
-
             <Text style={styles.statsCaption}>
               {t('compareModal.statsCaption', { level })}
             </Text>
 
-            {orderedRows.map((row) => {
-              const left = row.baseStat;
-              const oppRow = oppRowByName.get(row.name);
-              const right = oppRow?.baseStat;
-              const hasPair = right !== undefined;
-              let winner: 'left' | 'right' | 'tie' | 'unknown' = 'unknown';
-              if (hasPair) {
-                if (left > right!) {
-                  winner = 'left';
-                } else if (right! > left) {
-                  winner = 'right';
-                } else {
-                  winner = 'tie';
+            <View style={styles.statTable}>
+              <View style={styles.statTableHeaderRow}>
+                <Text style={styles.statTableHdrStat}>
+                  {t('compareModal.tableHeaderStat', { defaultValue: 'Stat' })}
+                </Text>
+                <Text
+                  style={[styles.statTableHdrName, selfLabelStyle]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {selfDisplayName}
+                </Text>
+                <Text
+                  style={[styles.statTableHdrName, otherLabelStyle]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {opponent.displayName}
+                </Text>
+              </View>
+              {orderedRows.map((row, idx) => {
+                const left = row.baseStat;
+                const oppRow = oppRowByName.get(row.name);
+                const right = oppRow?.baseStat;
+                const hasPair = right !== undefined;
+                let winner: 'left' | 'right' | 'tie' | 'unknown' = 'unknown';
+                if (hasPair) {
+                  if (left > right!) {
+                    winner = 'left';
+                  } else if (right! > left) {
+                    winner = 'right';
+                  } else {
+                    winner = 'tie';
+                  }
                 }
-              }
+                const isLastRow = idx === orderedRows.length - 1;
 
-              return (
-                <View key={row.name} style={styles.statBlock}>
-                  <Text style={styles.statName}>{row.displayName}</Text>
-                  <View style={styles.statCompareRow}>
-                    <View style={styles.statHalf}>
-                      <CompareStatColumn
-                        base={left}
+                return (
+                  <View
+                    key={row.name}
+                    style={[
+                      styles.statTableRow,
+                      idx % 2 === 1 ? styles.statTableRowAlt : null,
+                      isLastRow ? styles.statTableRowLast : null,
+                    ]}
+                  >
+                    <Text style={styles.statTableCellStat}>{row.displayName}</Text>
+                    <CompareStatTableCell
+                      base={left}
+                      statName={row.name}
+                      level={level}
+                      tint={leftTint}
+                      dimmed={hasPair && winner === 'right'}
+                    />
+                    {hasPair && oppRow ? (
+                      <CompareStatTableCell
+                        base={right!}
                         statName={row.name}
-                        scaleMax={statScaleMax}
                         level={level}
-                        tint={leftTint}
-                        dimmed={hasPair && winner === 'right'}
+                        tint={rightTint}
+                        dimmed={winner === 'left'}
                       />
-                    </View>
-                    <View style={styles.statHalf}>
-                      {hasPair && oppRow ? (
-                        <CompareStatColumn
-                          base={right!}
-                          statName={row.name}
-                          scaleMax={statScaleMax}
-                          level={level}
-                          tint={rightTint}
-                          dimmed={winner === 'left'}
-                        />
-                      ) : (
-                        <Text style={styles.statMissing}>—</Text>
-                      )}
-                    </View>
+                    ) : (
+                      <View style={styles.statTableValueCell}>
+                        <Text style={styles.statTableMissing}>—</Text>
+                      </View>
+                    )}
                   </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </>
         ) : (
           <Text style={styles.muted}>{t('compareModal.waitLoad')}</Text>
@@ -397,6 +320,7 @@ export function PokemonCompareModal({
                 accessibilityLabel={t('compareModal.closeA11y')}
                 onPress={onClose}
                 style={styles.closeBtn}
+                hitSlop={8}
               >
                 <Text style={styles.closeBtnText}>{t('compareModal.close')}</Text>
               </Pressable>
@@ -407,6 +331,7 @@ export function PokemonCompareModal({
               contentContainerStyle={styles.bodyScrollContent}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator
+              nestedScrollEnabled
             >
               {body}
             </ScrollView>
@@ -424,6 +349,8 @@ const styles = StyleSheet.create((theme) => ({
     pointerEvents: 'box-none',
   },
   card: {
+    flexDirection: 'column',
+    flexShrink: 1,
     backgroundColor: theme.colors.background,
     borderRadius: theme.radius.xxl,
     borderWidth: 1,
@@ -439,20 +366,24 @@ const styles = StyleSheet.create((theme) => ({
     elevation: 4,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: theme.space.md,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: theme.space.lg,
     paddingTop: theme.space.mdLg,
+    paddingBottom: theme.space.xxs,
   },
   title: {
-    flex: 1,
     fontSize: theme.fontSize.modalTitle,
     fontWeight: '800',
     color: theme.colors.text,
+    textAlign: 'center',
+    paddingHorizontal: theme.space.bottomXL,
   },
   closeBtn: {
+    position: 'absolute',
+    right: theme.space.lg,
+    top: theme.space.mdLg,
     paddingVertical: theme.space.xs,
     paddingHorizontal: theme.space.sm,
   },
@@ -467,9 +398,11 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.space.lg,
     paddingBottom: theme.space.sm,
     lineHeight: 17,
+    textAlign: 'center',
   },
   bodyScroll: {
-    maxHeight: '100%',
+    flex: 1,
+    minHeight: 0,
   },
   bodyScrollContent: {
     paddingHorizontal: theme.space.lg,
@@ -480,19 +413,24 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: '600',
     color: theme.colors.textSecondary,
     marginBottom: theme.space.sm,
+    textAlign: 'center',
   },
   chipScroll: {
-    marginBottom: theme.space.lg,
-    maxHeight: 120,
+    marginBottom: theme.space.md,
+    maxHeight: 94,
   },
   chipScrollContent: {
-    gap: theme.space.sm,
-    paddingBottom: theme.space.xs,
+    flexGrow: 1,
+    justifyContent: 'center',
+    gap: theme.space.xs,
+    paddingBottom: 2,
+    alignItems: 'center',
   },
   chip: {
-    width: 104,
-    padding: theme.space.sm,
-    borderRadius: theme.radius.lg,
+    width: 80,
+    paddingVertical: theme.space.xxs,
+    paddingHorizontal: theme.space.xs,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',
@@ -513,45 +451,42 @@ const styles = StyleSheet.create((theme) => ({
     borderColor: theme.colors.rivalBorderSoft,
   },
   chipSprite: {
-    width: 48,
-    height: 48,
+    width: 42,
+    height: 42,
     resizeMode: 'contain',
   },
   chipSpritePlaceholder: {
-    width: 48,
-    height: 48,
+    width: 42,
+    height: 42,
     backgroundColor: theme.colors.chipSpritePlaceholder,
-    borderRadius: theme.radius.md,
-  },
-  chipSlot: {
-    fontSize: theme.fontSize.caption,
-    fontWeight: '700',
-    color: theme.colors.textSecondary,
-    marginTop: theme.space.xs,
+    borderRadius: theme.radius.sm,
   },
   chipName: {
-    fontSize: theme.fontSize.caption,
+    fontSize: theme.fontSize.micro,
     color: theme.colors.text,
     textAlign: 'center',
-    marginTop: theme.space.xxs,
+    marginTop: 1,
+    maxWidth: 76,
   },
   errorInline: {
     color: theme.colors.error,
     fontSize: theme.fontSize.bodySm,
     marginBottom: theme.space.sm,
+    textAlign: 'center',
   },
   muted: {
     fontSize: theme.fontSize.bodyLg,
     color: theme.colors.textMuted,
     lineHeight: 20,
+    textAlign: 'center',
   },
   vsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: theme.space.sm,
-    marginBottom: theme.space.lg,
-    paddingVertical: theme.space.sm,
+    gap: theme.space.xs,
+    marginBottom: theme.space.md,
+    paddingVertical: theme.space.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
@@ -561,21 +496,21 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
   },
   vsSprite: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     resizeMode: 'contain',
   },
   vsSpritePlaceholder: {
-    width: 72,
-    height: 72,
+    width: 64,
+    height: 64,
     backgroundColor: theme.colors.chipSpritePlaceholder,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
   },
   vsName: {
-    fontSize: theme.fontSize.body,
+    fontSize: theme.fontSize.bodySm,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: theme.space.smd,
+    marginTop: theme.space.xs,
   },
   colHeadOurs: {
     color: theme.colors.oursAccent,
@@ -588,146 +523,97 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: '900',
     color: theme.colors.compareVsMark,
   },
-  bstRow: {
-    marginBottom: theme.space.xl,
-    padding: theme.space.md,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  bstLabel: {
-    fontSize: theme.fontSize.caption,
-    fontWeight: '800',
-    color: theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+  statsCaption: {
+    fontSize: theme.fontSize.micro,
+    color: theme.colors.textMuted,
+    lineHeight: 14,
     marginBottom: theme.space.smd,
+    textAlign: 'center',
   },
-  bstValues: {
+  statTable: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    overflow: 'hidden',
+  },
+  statTableHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.space.md,
+    gap: 4,
+    paddingVertical: theme.space.xs,
+    paddingHorizontal: theme.space.xs,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
   },
-  bstValue: {
-    fontSize: theme.fontSize.hero,
+  statTableHdrStat: {
+    flex: 0.85,
+    minWidth: 36,
+    fontSize: theme.fontSize.micro,
     fontWeight: '800',
-  },
-  bstSep: {
-    fontSize: theme.fontSize.bodyLg,
-    color: theme.colors.compareVsMark,
-  },
-  bstDelta: {
-    fontSize: theme.fontSize.bodySm,
-    fontWeight: '600',
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    marginTop: theme.space.smd,
-  },
-  bstDeltaMuted: {
-    fontSize: theme.fontSize.bodySm,
-    color: theme.colors.compareVsMark,
-    textAlign: 'center',
-    marginTop: theme.space.smd,
-  },
-  statsCaption: {
-    fontSize: theme.fontSize.caption,
-    color: theme.colors.textMuted,
-    lineHeight: 15,
-    marginBottom: theme.space.md,
-  },
-  statBlock: {
-    marginBottom: theme.space.mdLg,
-  },
-  statName: {
-    fontSize: theme.fontSize.caption,
-    fontWeight: '700',
-    color: theme.colors.textSecondary,
-    marginBottom: theme.space.smd,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.25,
+    textAlign: 'center',
   },
-  statCompareRow: {
-    flexDirection: 'row',
-    gap: theme.space.md,
-  },
-  statHalf: {
+  statTableHdrName: {
     flex: 1,
     minWidth: 0,
-  },
-  statColWrap: {
-    width: '100%',
-  },
-  statColDimmed: {
-    opacity: 0.58,
-  },
-  statBarStack: {
-    gap: theme.space.xs,
-  },
-  statTrack: {
-    height: 6,
-    borderRadius: theme.radius.xs,
-    backgroundColor: theme.colors.statTrack,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  statRangeFillFromStart: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: theme.radius.xs,
-  },
-  statRangeToMaxDimmed: {
-    opacity: 0.24,
-  },
-  statRangeBand: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    borderRadius: theme.radius.xs,
-  },
-  statRangeSpreadOpaque: {
-    opacity: 0.58,
-  },
-  statBaseFill: {
-    height: '100%',
-    borderRadius: theme.radius.xs,
-  },
-  statRangeBandOurs: {
-    backgroundColor: theme.colors.oursStatBar,
-  },
-  statRangeBandRival: {
-    backgroundColor: theme.colors.rivalStatBar,
-  },
-  statValuesColCompare: {
-    alignItems: 'center',
-    marginTop: theme.space.xs,
-    minWidth: 0,
-  },
-  statValueMain: {
-    fontSize: theme.fontSize.bodySm,
-    fontWeight: '600',
+    fontSize: theme.fontSize.micro,
+    fontWeight: '800',
     textAlign: 'center',
   },
-  statValueRange: {
+  statTableRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 4,
+    paddingVertical: theme.space.xs,
+    paddingHorizontal: theme.space.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  statTableRowAlt: {
+    backgroundColor: theme.colors.backgroundSecondary,
+  },
+  statTableRowLast: {
+    borderBottomWidth: 0,
+  },
+  statTableCellStat: {
+    flex: 0.85,
+    minWidth: 36,
+    alignSelf: 'center',
+    fontSize: theme.fontSize.micro,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  statTableValueCell: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.space.xxs,
+    paddingHorizontal: theme.space.xxs,
+  },
+  statTableValueDimmed: {
+    opacity: 0.52,
+  },
+  statTableBase: {
+    fontSize: theme.fontSize.bodySm,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  statTableRange: {
     fontSize: theme.fontSize.micro,
     fontWeight: '500',
     color: theme.colors.textSecondary,
     textAlign: 'center',
     marginTop: 1,
   },
-  statMissing: {
-    fontSize: theme.fontSize.bodyLg,
+  statTableMissing: {
+    fontSize: theme.fontSize.bodySm,
+    fontWeight: '700',
     color: theme.colors.compareVsMark,
     textAlign: 'center',
-    paddingVertical: theme.space.xxxl,
-  },
-  valueWin: {
-    transform: [{ scale: 1.02 }],
-  },
-  valueLose: {
-    opacity: 0.55,
   },
 }));
