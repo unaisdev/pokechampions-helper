@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react';
+import '@src/shared/theme/unistyles';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
+import { modalCardSizingStyle } from '@src/shared/lib/modal-layout';
+import { BackdropModal } from '@src/shared/ui/BackdropModal';
 import { formatPokemonSlugAsTitle, normalizePokemonNameQuery } from '@src/shared/lib/pokemon-name';
 
 export type ChangePokemonModalProps = {
@@ -33,6 +38,10 @@ export function ChangePokemonModal({
   onLoadFormSlugs,
   onApplySlug,
 }: ChangePokemonModalProps) {
+  const { t } = useTranslation();
+  const { theme } = useUnistyles();
+  const { width: windowWidth } = useWindowDimensions();
+  const wideCardSizing = useMemo(() => modalCardSizingStyle(windowWidth), [windowWidth]);
   const [formSlugs, setFormSlugs] = useState<string[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [search, setSearch] = useState('');
@@ -66,8 +75,16 @@ export function ChangePokemonModal({
 
   const accent =
     variant === 'ours'
-      ? { border: '#2563eb', chipBg: '#eff6ff', chipBorder: '#93c5fd' }
-      : { border: '#dc2626', chipBg: '#fef2f2', chipBorder: '#fecaca' };
+      ? {
+          border: theme.colors.primary,
+          chipBg: theme.colors.oursBgSoft,
+          chipBorder: theme.colors.oursBorderSoft,
+        }
+      : {
+          border: theme.colors.rivalAccentStrong,
+          chipBg: theme.colors.rivalBgSoft,
+          chipBorder: theme.colors.rivalBorderSoft,
+        };
 
   const showVariantSection = !loadingForms && formSlugs.length > 1;
 
@@ -79,7 +96,7 @@ export function ChangePokemonModal({
   const submitSearch = () => {
     const key = normalizePokemonNameQuery(search);
     if (!key) {
-      setSearchError('Escribe un nombre o slug de PokéAPI.');
+      setSearchError(t('changePokemon.searchEmpty'));
       return;
     }
     setSearchError(null);
@@ -88,31 +105,28 @@ export function ChangePokemonModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+    <BackdropModal visible={visible} onClose={onClose}>
+      <View style={styles.modalBody}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.card, { borderTopColor: accent.border }]}>
-            <Text style={styles.title}>Cambiar Pokémon</Text>
+          <View style={[styles.card, wideCardSizing, { borderTopColor: accent.border }]}>
+            <Text style={styles.title}>{t('changePokemon.title')}</Text>
             <Text style={styles.context}>{contextLabel}</Text>
-            <Text style={styles.hint}>
-              Si hay varias formas en PokéAPI, elige una abajo. Si quieres otro Pokémon distinto,
-              usa el buscador.
-            </Text>
+            <Text style={styles.hint}>{t('changePokemon.hint')}</Text>
 
             {loadingForms ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.loadingText}>Cargando formas disponibles…</Text>
+                <Text style={styles.loadingText}>{t('changePokemon.loadingForms')}</Text>
               </View>
             ) : null}
 
             {showVariantSection ? (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Formas disponibles</Text>
+                <Text style={styles.sectionLabel}>{t('changePokemon.formsLabel')}</Text>
                 {formSlugs.map((slug) => {
                   const selected = slug === currentSlug;
                   return (
@@ -127,7 +141,7 @@ export function ChangePokemonModal({
                     >
                       <Text style={[styles.formChipText, selected && styles.formChipTextSelected]}>
                         {formatPokemonSlugAsTitle(slug)}
-                        {selected ? ' · actual' : ''}
+                        {selected ? t('changePokemon.currentSuffix') : ''}
                       </Text>
                     </Pressable>
                   );
@@ -136,19 +150,17 @@ export function ChangePokemonModal({
             ) : null}
 
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Buscar Pokémon</Text>
-              <Text style={styles.searchHint}>
-                Nombre en inglés o slug de PokéAPI (ej. charizard, palafin-hero).
-              </Text>
+              <Text style={styles.sectionLabel}>{t('changePokemon.searchLabel')}</Text>
+              <Text style={styles.searchHint}>{t('changePokemon.searchHint')}</Text>
               <TextInput
                 style={styles.input}
                 value={search}
-                onChangeText={(t) => {
-                  setSearch(t);
+                onChangeText={(text) => {
+                  setSearch(text);
                   setSearchError(null);
                 }}
-                placeholder="Ej. palafin-hero"
-                placeholderTextColor="#71717a"
+                placeholder={t('changePokemon.searchPlaceholder')}
+                placeholderTextColor={theme.colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
@@ -156,26 +168,26 @@ export function ChangePokemonModal({
               />
               {searchError ? <Text style={styles.error}>{searchError}</Text> : null}
               <Pressable style={styles.primaryBtn} onPress={submitSearch}>
-                <Text style={styles.primaryBtnText}>Buscar y aplicar</Text>
+                <Text style={styles.primaryBtnText}>{t('changePokemon.searchApply')}</Text>
               </Pressable>
             </View>
 
             <Pressable style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeBtnText}>Cerrar</Text>
+              <Text style={styles.closeBtnText}>{t('changePokemon.close')}</Text>
             </Pressable>
           </View>
         </ScrollView>
       </View>
-    </Modal>
+    </BackdropModal>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
+const styles = StyleSheet.create((theme) => ({
+  modalBody: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
-    padding: 16,
+    padding: theme.space.xl,
+    pointerEvents: 'box-none',
   },
   scroll: {
     maxHeight: '100%',
@@ -183,111 +195,111 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: theme.space.sm,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 18,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.xxl,
+    padding: theme.space.xxl,
     borderTopWidth: 4,
     borderTopColor: 'transparent',
   },
   title: {
-    fontSize: 18,
+    fontSize: theme.fontSize.screenTitle,
     fontWeight: '700',
-    color: '#18181b',
-    marginBottom: 4,
+    color: theme.colors.text,
+    marginBottom: theme.space.xs,
   },
   context: {
-    fontSize: 14,
+    fontSize: theme.fontSize.bodyLg,
     fontWeight: '600',
-    color: '#52525b',
-    marginBottom: 10,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.space.md,
   },
   hint: {
-    fontSize: 13,
-    color: '#3f3f46',
+    fontSize: theme.fontSize.body,
+    color: theme.colors.textSecondary,
     lineHeight: 19,
-    marginBottom: 14,
+    marginBottom: theme.space.lg,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
+    gap: theme.space.md,
+    marginBottom: theme.space.lg,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#52525b',
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.textSecondary,
     flex: 1,
   },
   section: {
-    marginBottom: 16,
+    marginBottom: theme.space.xl,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: theme.fontSize.bodyLg,
     fontWeight: '700',
-    color: '#18181b',
-    marginBottom: 8,
+    color: theme.colors.text,
+    marginBottom: theme.space.sm,
   },
   formChip: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingVertical: theme.space.mdLg,
+    paddingHorizontal: theme.space.lg,
+    borderRadius: theme.radius.lg,
     borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: theme.space.sm,
   },
   formChipSelected: {
     borderWidth: 2,
   },
   formChipText: {
-    fontSize: 15,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '600',
-    color: '#27272a',
+    color: theme.colors.textInk,
   },
   formChipTextSelected: {
-    color: '#18181b',
+    color: theme.colors.text,
   },
   searchHint: {
-    fontSize: 12,
-    color: '#71717a',
-    marginBottom: 8,
+    fontSize: theme.fontSize.bodySm,
+    color: theme.colors.textMuted,
+    marginBottom: theme.space.sm,
     lineHeight: 17,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d4d4d8',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: theme.colors.inputBorder,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.space.mdLg,
     paddingVertical: Platform.select({ ios: 12, default: 10 }),
-    fontSize: 15,
-    marginBottom: 8,
-    color: '#18181b',
+    fontSize: theme.fontSize.titleSm,
+    marginBottom: theme.space.sm,
+    color: theme.colors.text,
   },
   error: {
-    color: '#b91c1c',
-    fontSize: 13,
-    marginBottom: 8,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.body,
+    marginBottom: theme.space.sm,
   },
   primaryBtn: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.space.mdLg,
+    borderRadius: theme.radius.lg,
     alignItems: 'center',
   },
   primaryBtnText: {
-    color: '#fff',
+    color: theme.colors.onPrimary,
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: theme.fontSize.titleSm,
   },
   closeBtn: {
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.xl,
   },
   closeBtnText: {
-    color: '#2563eb',
-    fontSize: 15,
+    color: theme.colors.link,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '600',
   },
-});
+}));

@@ -1,18 +1,33 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import '@src/shared/theme/unistyles';
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import {
   ActivityIndicator,
   Image,
-  Modal,
+  InteractionManager,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
+import { useTranslation } from 'react-i18next';
 
 import type { PokemonSummary } from '@src/entities/pokemon-summary';
 import {
@@ -22,10 +37,18 @@ import {
 } from '@src/features/battle-scan/lib/gemini-manual-team-scan';
 import { randomDemoTeamScan } from '@src/features/battle-scan/lib/random-demo-teams';
 import { ChangePokemonModal } from '@src/features/battle-scan/ui/ChangePokemonModal';
+import { CompactTeamMobileShell } from '@src/features/battle-scan/ui/CompactTeamMobileShell';
 import { TeamPokemonBattleCard } from '@src/features/battle-scan/ui/TeamPokemonBattleCard';
 import { defaultPokemonRepository } from '@src/shared/api';
+import { SettingsModal } from '@src/shared/settings/SettingsModal';
+import { appLocaleToPokeApiLanguage } from '@src/shared/lib/app-locale-to-pokeapi-language';
 import { PokemonNetworkError, PokemonNotFoundError } from '@src/shared/lib/errors';
-import { normalizePokemonNameQuery } from '@src/shared/lib/pokemon-name';
+import { modalCardSizingStyle } from '@src/shared/lib/modal-layout';
+import { BackdropModal } from '@src/shared/ui/BackdropModal';
+import { formatPokemonSlugAsTitle, normalizePokemonNameQuery } from '@src/shared/lib/pokemon-name';
+
+/** Ancho por debajo del cual los equipos pasan a pestañas inferiores a pantalla completa (ancho). */
+const COMPACT_TEAM_ARENA_BREAKPOINT = 640;
 
 /** Captura de ejemplo: pantalla previa con dos columnas (la misma que debe adjuntarse en Gemini). */
 const GEMINI_TEAM_SCAN_EXAMPLE_SOURCE = require('../../../../assets/images/example/example.jpeg');
@@ -47,6 +70,18 @@ type ChangeSlotTarget = {
 };
 
 export function BattleScanScreen() {
+  const { t, i18n } = useTranslation();
+  const { theme } = useUnistyles();
+  const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const pokeApiLanguage = appLocaleToPokeApiLanguage(i18n.language);
+  const compactTeamArena = windowWidth < COMPACT_TEAM_ARENA_BREAKPOINT;
+  const geminiModalCardSizing = useMemo(
+    () => modalCardSizingStyle(windowWidth, { maxWidth: 640 }),
+    [windowWidth],
+  );
+
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [geminiModalVisible, setGeminiModalVisible] = useState(false);
   const [geminiPaste, setGeminiPaste] = useState('');
   const [teamScan, setTeamScan] = useState<GeminiManualTeamScanV1 | null>(null);
@@ -56,12 +91,37 @@ export function BattleScanScreen() {
   const [ourTeamSlots, setOurTeamSlots] = useState<TeamSlotFetch[]>([]);
   const [rivalTeamSlots, setRivalTeamSlots] = useState<TeamSlotFetch[]>([]);
   const [changeSlotTarget, setChangeSlotTarget] = useState<ChangeSlotTarget | null>(null);
+  const [compactTeamTab, setCompactTeamTab] = useState<'ours' | 'rival'>('ours');
+  const [scrollToTeamsRequestId, setScrollToTeamsRequestId] = useState(0);
+  /** Se incrementa en el padre al terminar la carga en móvil; el shell solo reacciona (evita perder la transición anyLoading). */
+  const [compactPeekSignal, setCompactPeekSignal] = useState(0);
+  const prevAnyLoadingForCompactPeekRef = useRef<boolean | null>(null);
+
+  const mainScrollRef = useRef<ScrollView>(null);
+  const lastHandledWideScrollToTeamsRef = useRef(0);
+
+  const onWideTeamsSectionLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      if (compactTeamArena || !teamScan) {
+        return;
+      }
+      if (scrollToTeamsRequestId <= lastHandledWideScrollToTeamsRef.current) {
+        return;
+      }
+      lastHandledWideScrollToTeamsRef.current = scrollToTeamsRequestId;
+      const y = e.nativeEvent.layout.y;
+      InteractionManager.runAfterInteractions(() => {
+        mainScrollRef.current?.scrollTo({ y, animated: true });
+      });
+    },
+    [compactTeamArena, teamScan, scrollToTeamsRequestId],
+  );
 
   const copyGeminiPrompt = useCallback(async () => {
     await Clipboard.setStringAsync(GEMINI_TEAM_SCAN_PROMPT);
-    setCopyHint('Prompt copiado al portapapeles');
+    setCopyHint(t('battle.promptCopied'));
     setTimeout(() => setCopyHint(null), 2500);
-  }, []);
+  }, [t]);
 
   const openGeminiWeb = useCallback(() => {
     void WebBrowser.openBrowserAsync('https://gemini.google.com/app');
@@ -74,10 +134,11 @@ export function BattleScanScreen() {
       setTeamScan(parsed);
       setGeminiPaste('');
       setGeminiModalVisible(false);
+      setScrollToTeamsRequestId((n) => n + 1);
     } catch (e) {
-      setGeminiModalError(e instanceof Error ? e.message : 'No se pudo leer la respuesta.');
+      setGeminiModalError(e instanceof Error ? e.message : t('battle.parseError'));
     }
-  }, [geminiPaste]);
+  }, [geminiPaste, t]);
 
   useEffect(() => {
     if (!teamScan) {
@@ -111,18 +172,18 @@ export function BattleScanScreen() {
         rows.map(async (row, index) => {
           const query = row.formSlug;
           try {
-            const data = await defaultPokemonRepository.getByName(query);
+            const data = await defaultPokemonRepository.getByName(query, { pokeApiLanguage });
             if (!cancelled) {
               setter((prev) =>
                 prev.map((r, i) => (i === index ? { ...r, loading: false, error: null, data } : r)),
               );
             }
           } catch (e) {
-            let message = 'No se pudo cargar.';
+            let message = t('battle.errorLoad');
             if (e instanceof PokemonNotFoundError) {
-              message = `PokéAPI: «${query}» no encontrado.`;
+              message = t('battle.errorNotFound', { query });
             } else if (e instanceof PokemonNetworkError) {
-              message = 'Error de red al consultar PokéAPI.';
+              message = t('battle.errorNetwork');
             }
             if (!cancelled) {
               setter((prev) =>
@@ -144,6 +205,12 @@ export function BattleScanScreen() {
     return () => {
       cancelled = true;
     };
+  }, [teamScan, pokeApiLanguage, t]);
+
+  useEffect(() => {
+    if (!teamScan) {
+      setCompactTeamTab('ours');
+    }
   }, [teamScan]);
 
   const loadFormSlugsForModal = useCallback(
@@ -164,7 +231,7 @@ export function BattleScanScreen() {
     );
     void (async () => {
       try {
-        const data = await defaultPokemonRepository.getByName(key);
+        const data = await defaultPokemonRepository.getByName(key, { pokeApiLanguage });
         setter((prev) =>
           prev.map((row, i) =>
             i === index
@@ -173,11 +240,11 @@ export function BattleScanScreen() {
           ),
         );
       } catch (e) {
-        let message = 'No se pudo cargar.';
+        let message = t('battle.errorLoad');
         if (e instanceof PokemonNotFoundError) {
-          message = `PokéAPI: «${key}» no encontrado.`;
+          message = t('battle.errorNotFound', { query: key });
         } else if (e instanceof PokemonNetworkError) {
-          message = 'Error de red al consultar PokéAPI.';
+          message = t('battle.errorNetwork');
         }
         setter((prev) =>
           prev.map((row, i) =>
@@ -188,67 +255,182 @@ export function BattleScanScreen() {
         );
       }
     })();
-  }, []);
+  }, [pokeApiLanguage, t]);
 
-  const selectBattleFormSlug = useCallback(
-    (side: 'our' | 'rival', index: number, newSlug: string) => {
-      const setter = side === 'our' ? setOurTeamSlots : setRivalTeamSlots;
-      let previousFormSlug = '';
-      setter((prev) => {
-        previousFormSlug = prev[index]?.formSlug ?? '';
-        return prev.map((row, i) =>
-          i === index ? { ...row, formSlug: newSlug, loading: true, error: null } : row,
+  const selectBattleFormSlug = useCallback((side: 'our' | 'rival', index: number, newSlug: string) => {
+    const setter = side === 'our' ? setOurTeamSlots : setRivalTeamSlots;
+    let previousFormSlug = '';
+    setter((prev) => {
+      previousFormSlug = prev[index]?.formSlug ?? '';
+      return prev.map((row, i) =>
+        i === index ? { ...row, formSlug: newSlug, loading: true, error: null } : row,
+      );
+    });
+    void (async () => {
+      try {
+        const data = await defaultPokemonRepository.getByName(newSlug, { pokeApiLanguage });
+        setter((prev) =>
+          prev.map((row, i) =>
+            i === index ? { ...row, loading: false, error: null, data } : row,
+          ),
         );
-      });
-      void (async () => {
-        try {
-          const data = await defaultPokemonRepository.getByName(newSlug);
-          setter((prev) =>
-            prev.map((row, i) =>
-              i === index ? { ...row, loading: false, error: null, data } : row,
-            ),
-          );
-        } catch (e) {
-          let message = 'No se pudo cargar.';
-          if (e instanceof PokemonNotFoundError) {
-            message = `PokéAPI: «${newSlug}» no encontrado.`;
-          } else if (e instanceof PokemonNetworkError) {
-            message = 'Error de red al consultar PokéAPI.';
-          }
-          setter((prev) =>
-            prev.map((row, i) =>
-              i === index
-                ? { ...row, formSlug: previousFormSlug, loading: false, error: message }
-                : row,
-            ),
-          );
+      } catch (e) {
+        let message = t('battle.errorLoad');
+        if (e instanceof PokemonNotFoundError) {
+          message = t('battle.errorNotFound', { query: newSlug });
+        } else if (e instanceof PokemonNetworkError) {
+          message = t('battle.errorNetwork');
         }
-      })();
-    },
-    [],
-  );
+        setter((prev) =>
+          prev.map((row, i) =>
+            i === index
+              ? { ...row, formSlug: previousFormSlug, loading: false, error: message }
+              : row,
+          ),
+        );
+      }
+    })();
+  }, [pokeApiLanguage, t]);
 
   const anyLoading = ourTeamSlots.some((s) => s.loading) || rivalTeamSlots.some((s) => s.loading);
 
-  return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={styles.screenTitle}>Previa de equipos</Text>
-      <Text style={styles.lead}>
-        Importa el JSON que generes en Gemini con la captura del juego. La app muestra ambos equipos
-        como en la pantalla de combate, con datos de PokéAPI para cada Pokémon.
-      </Text>
+  useEffect(() => {
+    if (!teamScan || !compactTeamArena) {
+      prevAnyLoadingForCompactPeekRef.current = null;
+      return;
+    }
+    const prev = prevAnyLoadingForCompactPeekRef.current;
+    if (prev === null) {
+      prevAnyLoadingForCompactPeekRef.current = anyLoading;
+      return;
+    }
+    const shouldPeek = prev === true && !anyLoading && compactTeamTab === 'ours';
+    prevAnyLoadingForCompactPeekRef.current = anyLoading;
+    if (!shouldPeek) {
+      return;
+    }
+    const id = setTimeout(() => {
+      setCompactPeekSignal((n) => n + 1);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [teamScan, compactTeamArena, anyLoading, compactTeamTab]);
 
-      <Text style={styles.heroExampleCaption}>
-        Ejemplo de imagen para Gemini (tu equipo a la izquierda, rival a la derecha):
-      </Text>
+  const ourTeamColumn = (
+    <View
+      style={[
+        styles.columnBase,
+        compactTeamArena ? styles.columnFullWidth : styles.columnInRow,
+        styles.columnOurs,
+      ]}
+    >
+      <Text style={styles.columnTitleOurs}>{t('battle.columnOurs')}</Text>
+      {ourTeamSlots.length === 0 ? (
+        <Text style={styles.emptyColumn}>{t('battle.emptyColumn')}</Text>
+      ) : (
+        ourTeamSlots.map((row, i) => (
+          <TeamPokemonBattleCard
+            key={`our-${i}`}
+            slot={i + 1}
+            slug={row.slug}
+            formSlug={row.formSlug}
+            loading={row.loading}
+            error={row.error}
+            summary={row.data}
+            variant="ours"
+            onPressChangePokemon={() =>
+              setChangeSlotTarget({ side: 'our', index: i, slug: row.slug })
+            }
+            onSelectFormSlug={(s) => selectBattleFormSlug('our', i, s)}
+            compareOpponents={rivalTeamSlots.map((r, j) => ({
+              slot: j + 1,
+              displayName: r.data?.displayName ?? formatPokemonSlugAsTitle(r.slug),
+              spriteUrl: r.data?.spriteUrl ?? null,
+              stats: r.data?.stats ?? null,
+              loading: r.loading,
+              error: r.error,
+            }))}
+            compareOtherColumnLabel={t('battle.columnRival')}
+          />
+        ))
+      )}
+    </View>
+  );
+
+  const rivalTeamColumn = (
+    <View
+      style={[
+        styles.columnBase,
+        compactTeamArena ? styles.columnFullWidth : styles.columnInRow,
+        styles.columnRival,
+      ]}
+    >
+      <Text style={styles.columnTitleRival}>{t('battle.columnRival')}</Text>
+      {rivalTeamSlots.length === 0 ? (
+        <Text style={styles.emptyColumn}>{t('battle.emptyColumn')}</Text>
+      ) : (
+        rivalTeamSlots.map((row, i) => (
+          <TeamPokemonBattleCard
+            key={`rival-${i}`}
+            slot={i + 1}
+            slug={row.slug}
+            formSlug={row.formSlug}
+            loading={row.loading}
+            error={row.error}
+            summary={row.data}
+            variant="rival"
+            onPressChangePokemon={() =>
+              setChangeSlotTarget({ side: 'rival', index: i, slug: row.slug })
+            }
+            onSelectFormSlug={(s) => selectBattleFormSlug('rival', i, s)}
+            compareOpponents={ourTeamSlots.map((r, j) => ({
+              slot: j + 1,
+              displayName: r.data?.displayName ?? formatPokemonSlugAsTitle(r.slug),
+              spriteUrl: r.data?.spriteUrl ?? null,
+              stats: r.data?.stats ?? null,
+              loading: r.loading,
+              error: r.error,
+            }))}
+            compareOtherColumnLabel={t('battle.columnOurs')}
+          />
+        ))
+      )}
+    </View>
+  );
+
+  const headerThroughActions = (
+    <>
+      <View style={styles.titleRow}>
+        <Text style={styles.screenTitle}>{t('battle.screenTitle')}</Text>
+        <Pressable
+          style={styles.settingsBtn}
+          onPress={() => setSettingsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.openA11y')}
+        >
+          <Ionicons name="settings-outline" size={26} color={theme.colors.text} />
+        </Pressable>
+      </View>
+      <Text style={styles.lead}>{t('battle.lead')}</Text>
+
+      <Text style={styles.heroExampleCaption}>{t('battle.heroExampleCaption')}</Text>
       <View style={styles.heroExampleImageWrap}>
         <Image
           source={GEMINI_TEAM_SCAN_EXAMPLE_SOURCE}
           style={styles.heroExampleImage}
           resizeMode="contain"
-          accessibilityLabel="Ejemplo de pantalla previa de combate con dos columnas de Pokémon"
+          accessibilityLabel={t('battle.heroExampleA11y')}
         />
       </View>
+
+      <Pressable
+        style={styles.randomDemoBtn}
+        onPress={() => {
+          setTeamScan(randomDemoTeamScan());
+          setScrollToTeamsRequestId((n) => n + 1);
+        }}
+      >
+        <Text style={styles.randomDemoBtnText}>{t('battle.randomDemo')}</Text>
+      </Pressable>
 
       <Pressable
         style={styles.primaryBtn}
@@ -257,87 +439,88 @@ export function BattleScanScreen() {
           setGeminiModalVisible(true);
         }}
       >
-        <Text style={styles.primaryBtnText}>Importar JSON (Gemini)</Text>
+        <Text style={styles.primaryBtnText}>{t('battle.importJson')}</Text>
       </Pressable>
+    </>
+  );
 
-      <Pressable style={styles.randomDemoBtn} onPress={() => setTeamScan(randomDemoTeamScan())}>
-        <Text style={styles.randomDemoBtnText}>Probar con equipos aleatorios</Text>
-      </Pressable>
+  const loadingBannerEl =
+    teamScan && anyLoading ? (
+      <View style={styles.loadingBanner}>
+        <ActivityIndicator />
+        <Text style={styles.loadingText}>{t('battle.loadingPokeapi')}</Text>
+      </View>
+    ) : null;
 
+  const clearTeamsPressable = teamScan ? (
+    <Pressable
+      style={[styles.ghostBtn, compactTeamArena && styles.ghostBtnBelowTeam]}
+      onPress={() => {
+        setTeamScan(null);
+        setOurTeamSlots([]);
+        setRivalTeamSlots([]);
+      }}
+    >
+      <Text style={styles.ghostBtnText}>{t('battle.clearTeams')}</Text>
+    </Pressable>
+  ) : null;
+
+  const scrollBodyDefault = (
+    <>
+      {headerThroughActions}
       {teamScan ? (
         <>
-          {anyLoading ? (
-            <View style={styles.loadingBanner}>
-              <ActivityIndicator />
-              <Text style={styles.loadingText}>Cargando datos de PokéAPI…</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.arena}>
-            <View style={[styles.column, styles.columnOurs]}>
-              <Text style={styles.columnTitleOurs}>Nuestro equipo</Text>
-              {ourTeamSlots.length === 0 ? (
-                <Text style={styles.emptyColumn}>Sin Pokémon en el JSON</Text>
-              ) : (
-                ourTeamSlots.map((row, i) => (
-                  <TeamPokemonBattleCard
-                    key={`our-${i}`}
-                    slot={i + 1}
-                    slug={row.slug}
-                    formSlug={row.formSlug}
-                    loading={row.loading}
-                    error={row.error}
-                    summary={row.data}
-                    variant="ours"
-                    onPressChangePokemon={() =>
-                      setChangeSlotTarget({ side: 'our', index: i, slug: row.slug })
-                    }
-                    onSelectFormSlug={(s) => selectBattleFormSlug('our', i, s)}
-                  />
-                ))
-              )}
-            </View>
-
-            <View style={[styles.column, styles.columnRival]}>
-              <Text style={styles.columnTitleRival}>Rival</Text>
-              {rivalTeamSlots.length === 0 ? (
-                <Text style={styles.emptyColumn}>Sin Pokémon en el JSON</Text>
-              ) : (
-                rivalTeamSlots.map((row, i) => (
-                  <TeamPokemonBattleCard
-                    key={`rival-${i}`}
-                    slot={i + 1}
-                    slug={row.slug}
-                    formSlug={row.formSlug}
-                    loading={row.loading}
-                    error={row.error}
-                    summary={row.data}
-                    variant="rival"
-                    onPressChangePokemon={() =>
-                      setChangeSlotTarget({ side: 'rival', index: i, slug: row.slug })
-                    }
-                    onSelectFormSlug={(s) => selectBattleFormSlug('rival', i, s)}
-                  />
-                ))
-              )}
-            </View>
+          <View onLayout={onWideTeamsSectionLayout}>
+            {loadingBannerEl}
+            {!compactTeamArena ? (
+              <View style={styles.arena}>
+                {ourTeamColumn}
+                {rivalTeamColumn}
+              </View>
+            ) : null}
           </View>
-
-          <Pressable
-            style={styles.ghostBtn}
-            onPress={() => {
-              setTeamScan(null);
-              setOurTeamSlots([]);
-              setRivalTeamSlots([]);
-            }}
-          >
-            <Text style={styles.ghostBtnText}>Borrar equipos importados</Text>
-          </Pressable>
+          {clearTeamsPressable}
         </>
       ) : (
-        <Text style={styles.emptyHint}>
-          Aún no hay equipos. Pulsa «Importar JSON» y pega la respuesta de Gemini.
-        </Text>
+        <Text style={styles.emptyHint}>{t('battle.emptyHint')}</Text>
+      )}
+    </>
+  );
+
+  const compactContentWidth = Math.max(0, windowWidth - 32);
+
+  return (
+    <>
+      <SettingsModal visible={settingsModalVisible} onClose={() => setSettingsModalVisible(false)} />
+      {teamScan && compactTeamArena ? (
+        <CompactTeamMobileShell
+          contentWidth={compactContentWidth}
+          scrollContentStyle={[styles.scroll, styles.scrollCompactWithTeams]}
+          tabBarPaddingBottom={Math.max(insets.bottom, 10)}
+          tab={compactTeamTab}
+          onTabChange={setCompactTeamTab}
+          peekSignal={compactPeekSignal}
+          oursLabel={t('battle.columnOurs')}
+          rivalLabel={t('battle.columnRival')}
+          oursColumn={ourTeamColumn}
+          rivalColumn={rivalTeamColumn}
+          scrollToTeamsRequestId={scrollToTeamsRequestId}
+          leadingScrollContent={
+            <>
+              {headerThroughActions}
+              {loadingBannerEl}
+            </>
+          }
+          trailingScrollContent={clearTeamsPressable}
+        />
+      ) : (
+        <ScrollView
+          ref={mainScrollRef}
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          {scrollBodyDefault}
+        </ScrollView>
       )}
 
       <ChangePokemonModal
@@ -346,73 +529,62 @@ export function BattleScanScreen() {
         currentSlug={changeSlotTarget?.slug ?? ''}
         contextLabel={
           changeSlotTarget
-            ? `${changeSlotTarget.side === 'our' ? 'Nuestro equipo' : 'Rival'} — posición ${changeSlotTarget.index + 1}`
+            ? changeSlotTarget.side === 'our'
+              ? t('battle.changeContextOur', { slot: changeSlotTarget.index + 1 })
+              : t('battle.changeContextRival', { slot: changeSlotTarget.index + 1 })
             : ''
         }
         variant={changeSlotTarget?.side === 'our' ? 'ours' : 'rival'}
         onLoadFormSlugs={loadFormSlugsForModal}
         onApplySlug={(newSlug) => {
-          const t = changeSlotTarget;
-          if (!t) {
+          const target = changeSlotTarget;
+          if (!target) {
             return;
           }
-          applySlotSlug(t.side, t.index, newSlug);
+          applySlotSlug(target.side, target.index, newSlug);
         }}
       />
 
-      <Modal
-        visible={geminiModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setGeminiModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
+      <BackdropModal visible={geminiModalVisible} onClose={() => setGeminiModalVisible(false)}>
+        <View style={styles.geminiModalBody}>
           <ScrollView
             style={styles.modalScroll}
             contentContainerStyle={styles.modalScrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
           >
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Gemini — mismo formato JSON</Text>
-              <Text style={styles.modalStep}>
-                1) Pulsa «Copiar prompt» (instrucciones + formato que Gemini debe respetar).
-              </Text>
-              <Text style={styles.modalStep}>
-                2) «Abrir Gemini», adjunta la captura del equipo y pega el prompt en el chat.
-              </Text>
-              <Text style={styles.modalExampleCaption}>
-                Ejemplo del tipo de imagen (equipo izquierda / rival derecha):
-              </Text>
+            <View style={[styles.modalCard, geminiModalCardSizing]}>
+              <Text style={styles.modalTitle}>{t('battle.geminiModalTitle')}</Text>
+              <Text style={styles.modalStep}>{t('battle.geminiStep1')}</Text>
+              <Text style={styles.modalStep}>{t('battle.geminiStep2')}</Text>
+              <Text style={styles.modalExampleCaption}>{t('battle.geminiExampleCaption')}</Text>
               <View style={styles.modalExampleImageWrap}>
                 <Image
                   source={GEMINI_TEAM_SCAN_EXAMPLE_SOURCE}
                   style={styles.modalExampleImage}
                   resizeMode="contain"
-                  accessibilityLabel="Ejemplo de pantalla previa de combate con dos columnas de Pokémon"
+                  accessibilityLabel={t('battle.heroExampleA11y')}
                 />
               </View>
-              <Text style={styles.modalStep}>
-                3) Cuando Gemini responda, copia solo el JSON y pégalo abajo; pulsa «Aplicar».
-              </Text>
+              <Text style={styles.modalStep}>{t('battle.geminiStep3')}</Text>
 
               <View style={styles.modalActions}>
                 <Pressable style={styles.secondaryBtn} onPress={() => void copyGeminiPrompt()}>
-                  <Text style={styles.secondaryBtnText}>Copiar prompt</Text>
+                  <Text style={styles.secondaryBtnText}>{t('battle.copyPrompt')}</Text>
                 </Pressable>
                 <Pressable style={styles.secondaryBtn} onPress={openGeminiWeb}>
-                  <Text style={styles.secondaryBtnText}>Abrir Gemini</Text>
+                  <Text style={styles.secondaryBtnText}>{t('battle.openGemini')}</Text>
                 </Pressable>
               </View>
               {copyHint ? <Text style={styles.copyHint}>{copyHint}</Text> : null}
 
-              <Text style={styles.modalLabel}>Respuesta de Gemini (JSON)</Text>
+              <Text style={styles.modalLabel}>{t('battle.geminiJsonLabel')}</Text>
               <TextInput
                 style={styles.modalTextArea}
                 value={geminiPaste}
                 onChangeText={setGeminiPaste}
                 placeholder='{"version":1,"nuestro_equipo":[],"rival":[]}'
-                placeholderTextColor="#71717a"
+                placeholderTextColor={theme.colors.textMuted}
                 multiline
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -425,50 +597,66 @@ export function BattleScanScreen() {
                 onPress={applyGeminiResponse}
                 disabled={!geminiPaste.trim()}
               >
-                <Text style={styles.primaryBtnText}>Aplicar respuesta</Text>
+                <Text style={styles.primaryBtnText}>{t('battle.applyResponse')}</Text>
               </Pressable>
               <Pressable style={styles.modalClose} onPress={() => setGeminiModalVisible(false)}>
-                <Text style={styles.modalCloseText}>Cerrar</Text>
+                <Text style={styles.modalCloseText}>{t('battle.close')}</Text>
               </Pressable>
             </View>
           </ScrollView>
         </View>
-      </Modal>
-    </ScrollView>
+      </BackdropModal>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   scroll: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: theme.space.xl,
+    paddingBottom: theme.space.bottomXL,
+  },
+  /** Aire al final al haber barra de pestañas de equipos fija abajo. */
+  scrollCompactWithTeams: {
+    paddingBottom: theme.space.bottomTab,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.space.md,
+    marginBottom: theme.space.sm,
   },
   screenTitle: {
-    fontSize: 22,
+    flex: 1,
+    fontSize: theme.fontSize.heroLg,
     fontWeight: '800',
-    color: '#18181b',
-    marginBottom: 8,
+    color: theme.colors.text,
+    paddingRight: theme.space.sm,
+  },
+  settingsBtn: {
+    padding: theme.space.xs,
+    marginTop: 2,
   },
   lead: {
-    fontSize: 15,
-    color: '#52525b',
+    fontSize: theme.fontSize.titleSm,
+    color: theme.colors.textSecondary,
     lineHeight: 22,
-    marginBottom: 16,
+    marginBottom: theme.space.xl,
   },
   heroExampleCaption: {
-    fontSize: 13,
+    fontSize: theme.fontSize.body,
     fontWeight: '600',
-    color: '#52525b',
-    marginBottom: 8,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.space.sm,
   },
   heroExampleImageWrap: {
     width: '100%',
-    marginBottom: 20,
-    borderRadius: 12,
+    marginBottom: theme.space.xxxl,
+    borderRadius: theme.radius.xl,
     overflow: 'hidden',
-    backgroundColor: '#f4f4f5',
+    backgroundColor: theme.colors.neutralSurface,
     borderWidth: 1,
-    borderColor: '#e4e4e7',
+    borderColor: theme.colors.border,
     minHeight: 160,
   },
   heroExampleImage: {
@@ -476,30 +664,30 @@ const styles = StyleSheet.create({
     height: 200,
   },
   primaryBtn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: theme.colors.primary,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: theme.radius.lg,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: theme.space.md,
   },
   randomDemoBtn: {
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: theme.radius.lg,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: theme.space.xl,
     borderWidth: 2,
-    borderColor: '#2563eb',
-    backgroundColor: '#fff',
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
   },
   randomDemoBtnText: {
-    color: '#2563eb',
+    color: theme.colors.primary,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: theme.fontSize.title,
   },
   primaryBtnText: {
-    color: '#fff',
+    color: theme.colors.onPrimary,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: theme.fontSize.title,
   },
   disabled: {
     opacity: 0.5,
@@ -507,137 +695,147 @@ const styles = StyleSheet.create({
   loadingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#eff6ff',
-    borderRadius: 10,
+    gap: theme.space.md,
+    marginBottom: theme.space.mdLg,
+    padding: theme.space.mdLg,
+    backgroundColor: theme.colors.oursBgSoft,
+    borderRadius: theme.radius.lg,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#1e40af',
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.bannerInfoText,
     flex: 1,
   },
   arena: {
     flexDirection: 'row',
-    gap: 10,
+    gap: theme.space.md,
     alignItems: 'flex-start',
   },
-  column: {
-    flex: 1,
+  /** Sin flex: evita colapso de altura (flexBasis 0) que superpone el bloque siguiente en ScrollView. */
+  columnBase: {
     minWidth: 0,
-    borderRadius: 12,
-    padding: 10,
-    paddingTop: 12,
+    borderRadius: theme.radius.xl,
+    padding: theme.space.md,
+    paddingTop: theme.space.mdLg,
+  },
+  columnInRow: {
+    flex: 1,
+  },
+  columnFullWidth: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
   columnOurs: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: theme.colors.oursBgSoft,
   },
   columnRival: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: theme.colors.rivalBgSoft,
   },
   columnTitleOurs: {
-    fontSize: 13,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '800',
-    color: '#1d4ed8',
+    color: theme.colors.oursAccent,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: theme.space.md,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   columnTitleRival: {
-    fontSize: 13,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '800',
-    color: '#b91c1c',
+    color: theme.colors.rivalAccent,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: theme.space.md,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   emptyColumn: {
-    fontSize: 13,
-    color: '#71717a',
+    fontSize: theme.fontSize.body,
+    color: theme.colors.textMuted,
     textAlign: 'center',
-    paddingVertical: 12,
+    paddingVertical: theme.space.mdLg,
   },
   emptyHint: {
-    fontSize: 14,
-    color: '#71717a',
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.textMuted,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 24,
-    paddingHorizontal: 8,
+    marginTop: theme.space.section,
+    paddingHorizontal: theme.space.sm,
   },
   ghostBtn: {
     alignSelf: 'center',
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    marginTop: theme.space.xl,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.mdLg,
+  },
+  ghostBtnBelowTeam: {
+    marginTop: theme.space.xxxl,
   },
   ghostBtnText: {
-    color: '#2563eb',
-    fontSize: 14,
+    color: theme.colors.link,
+    fontSize: theme.fontSize.bodyLg,
     fontWeight: '600',
   },
   error: {
-    color: '#b91c1c',
-    marginBottom: 12,
+    color: theme.colors.error,
+    marginBottom: theme.space.mdLg,
   },
   secondaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#e4e4e7',
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.lg,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.secondaryControlBg,
   },
   secondaryBtnText: {
     fontWeight: '600',
-    fontSize: 14,
-    color: '#18181b',
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.text,
   },
-  modalBackdrop: {
+  geminiModalBody: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
-    padding: 16,
+    padding: theme.space.xl,
+    pointerEvents: 'box-none',
   },
   modalScroll: {
     maxHeight: '100%',
   },
   modalScrollContent: {
-    paddingBottom: 28,
+    paddingBottom: theme.space.bottomLg,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 18,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.xxl,
+    padding: theme.space.xxl,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: theme.fontSize.screenTitle,
     fontWeight: '700',
-    marginBottom: 12,
-    color: '#18181b',
+    marginBottom: theme.space.mdLg,
+    color: theme.colors.text,
   },
   modalStep: {
-    fontSize: 14,
-    color: '#3f3f46',
-    marginBottom: 8,
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.space.sm,
     lineHeight: 20,
   },
   modalExampleCaption: {
-    fontSize: 13,
+    fontSize: theme.fontSize.body,
     fontWeight: '600',
-    color: '#52525b',
-    marginTop: 4,
-    marginBottom: 6,
+    color: theme.colors.textSecondary,
+    marginTop: theme.space.xs,
+    marginBottom: theme.space.smd,
   },
   modalExampleImageWrap: {
     width: '100%',
-    marginBottom: 10,
-    borderRadius: 10,
+    marginBottom: theme.space.md,
+    borderRadius: theme.radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#f4f4f5',
+    backgroundColor: theme.colors.neutralSurface,
     borderWidth: 1,
-    borderColor: '#e4e4e7',
+    borderColor: theme.colors.border,
     minHeight: 160,
   },
   modalExampleImage: {
@@ -647,44 +845,44 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 8,
+    gap: theme.space.sm,
+    marginTop: theme.space.sm,
+    marginBottom: theme.space.sm,
   },
   copyHint: {
-    fontSize: 13,
-    color: '#15803d',
-    marginBottom: 8,
+    fontSize: theme.fontSize.body,
+    color: theme.colors.success,
+    marginBottom: theme.space.sm,
     fontWeight: '600',
   },
   modalLabel: {
-    fontSize: 14,
+    fontSize: theme.fontSize.bodyLg,
     fontWeight: '600',
-    marginBottom: 6,
-    marginTop: 8,
-    color: '#18181b',
+    marginBottom: theme.space.smd,
+    marginTop: theme.space.sm,
+    color: theme.colors.text,
   },
   modalTextArea: {
     borderWidth: 1,
-    borderColor: '#d4d4d8',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderColor: theme.colors.inputBorder,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.space.mdLg,
+    paddingVertical: theme.space.md,
+    fontSize: theme.fontSize.bodyLg,
     minHeight: 100,
     textAlignVertical: 'top',
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    marginBottom: 12,
-    color: '#18181b',
+    marginBottom: theme.space.mdLg,
+    color: theme.colors.text,
   },
   modalClose: {
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.xl,
   },
   modalCloseText: {
-    color: '#2563eb',
-    fontSize: 15,
+    color: theme.colors.link,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '600',
   },
-});
+}));

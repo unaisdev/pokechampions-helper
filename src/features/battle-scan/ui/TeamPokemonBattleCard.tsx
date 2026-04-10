@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
-  Modal,
   Pressable,
-  StyleSheet,
   Text,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
 import type { PokemonSummary } from '@src/entities/pokemon-summary';
 import {
@@ -19,20 +18,17 @@ import {
   isHpStatName,
   pokemonStatMinMaxIvEvNatureSpread,
   sortStatsForBattleDisplay,
-  statLabelEs,
 } from '@src/shared/lib/pokemon-stats-display';
+import { defaultPokemonRepository } from '@src/shared/api';
+import { BackdropModal } from '@src/shared/ui/BackdropModal';
+import { appLocaleToPokeApiLanguage } from '@src/shared/lib/app-locale-to-pokeapi-language';
 import { formatPokemonSlugAsTitle } from '@src/shared/lib/pokemon-name';
+
+import { PokemonCompareModal, type CompareOpponentOption } from './PokemonCompareModal';
+import { PokemonMovesModal } from './PokemonMovesModal';
 
 /** Viewport más estrecho que esto: botón de cambio como icono (móvil / columna estrecha). */
 const CHANGE_ACTION_ICON_BREAKPOINT = 640;
-
-function formatAbilityLabel(slug: string): string {
-  return slug.split('-').join(' ');
-}
-
-function statsSectionInfoCopy(level: number): string {
-  return `Arriba: stat base en la escala. Abajo: rango calculado a niv. ${level} — relleno tenue hasta el máximo posible y tramo más marcado entre min y max IV/EV. PS sin naturaleza; resto con ×0,9 / ×1,1.`;
-}
 
 export type TeamPokemonSlotProps = {
   slot: number;
@@ -45,6 +41,9 @@ export type TeamPokemonSlotProps = {
   variant: 'ours' | 'rival';
   onPressChangePokemon?: () => void;
   onSelectFormSlug?: (slug: string) => void;
+  /** Pokémon del otro bando para el modal «comparar stats»; si falta o está vacío, no se muestra el botón. */
+  compareOpponents?: CompareOpponentOption[];
+  compareOtherColumnLabel?: string;
 };
 
 export function TeamPokemonBattleCard({
@@ -57,20 +56,61 @@ export function TeamPokemonBattleCard({
   variant,
   onPressChangePokemon,
   onSelectFormSlug,
+  compareOpponents,
+  compareOtherColumnLabel,
 }: TeamPokemonSlotProps) {
+  const { t, i18n } = useTranslation();
+  const { theme } = useUnistyles();
+  const pokeApiLanguage = appLocaleToPokeApiLanguage(i18n.language);
   const [statsInfoOpen, setStatsInfoOpen] = useState(false);
+  const [movesModalOpen, setMovesModalOpen] = useState(false);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [abilityExtras, setAbilityExtras] = useState<
+    Record<string, { displayName: string; shortEffect: string | null }>
+  >({});
+
+  const loadMoves = useCallback(
+    (slugs: string[], onProgress?: (loaded: number, total: number) => void) =>
+      defaultPokemonRepository.getMoveLearnablesForSlugs(slugs, {
+        pokeApiLanguage,
+        onProgress,
+      }),
+    [pokeApiLanguage],
+  );
+
+  const abilityNamesKey =
+    summary?.abilities?.map((a) => a.name).join('\0') ?? '';
+
+  useEffect(() => {
+    setAbilityExtras({});
+
+    if (!summary?.abilities?.length) {
+      return;
+    }
+    const uniqueNames = [...new Set(summary.abilities.map((a) => a.name))];
+    for (const name of uniqueNames) {
+      void defaultPokemonRepository
+        .getAbilityDetail(name, { pokeApiLanguage })
+        .then((detail) => {
+          setAbilityExtras((prev) => ({ ...prev, [name]: detail }));
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abilityNamesKey encodes `summary.abilities` slugs
+  }, [summary?.name, formSlug, pokeApiLanguage, abilityNamesKey]);
   const { width: windowWidth } = useWindowDimensions();
   const changeActionAsIcon = windowWidth < CHANGE_ACTION_ICON_BREAKPOINT;
   const accent = variant === 'ours' ? styles.accentOurs : styles.accentRival;
-  const chipAccent = variant === 'ours' ? styles.formChipAccentOurs : styles.formChipAccentRival;
-  const titleSlug = summary?.name ?? slug;
+  const chipAccent =
+    variant === 'ours' ? styles.formChipAccentOurs : styles.formChipAccentRival;
+  const titleDisplay = summary?.displayName ?? formatPokemonSlugAsTitle(slug);
   const formOptions =
     summary && summary.megaForms.length > 0
-      ? [{ slug: summary.speciesDefaultFormSlug, label: 'Forma base' }, ...summary.megaForms]
+      ? [{ slug: summary.speciesDefaultFormSlug, label: t('card.defaultForm') }, ...summary.megaForms]
       : [];
 
-  const changeActionLabel = summary ? 'Cambiar Pokémon' : 'Cambiar forma';
-  const changeIconColor = variant === 'ours' ? '#1d4ed8' : '#b91c1c';
+  const changeActionLabel = summary ? t('card.changePokemon') : t('card.changeForm');
+  const changeIconColor = variant === 'ours' ? theme.colors.oursAccent : theme.colors.rivalAccent;
+  const moveNames = summary?.moveNames ?? [];
 
   const battleStatsForRange = summary ? sortStatsForBattleDisplay(summary.stats) : [];
   const statVisualScaleMax =
@@ -97,38 +137,88 @@ export function TeamPokemonBattleCard({
             <Text style={styles.slotBadgeText}>{slot}</Text>
           </View>
           <Text style={styles.name} numberOfLines={2}>
-            {formatPokemonSlugAsTitle(titleSlug)}
+            {titleDisplay}
           </Text>
         </View>
-        {onPressChangePokemon && !loading ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={changeActionLabel}
-            style={[
-              styles.changePokemonBtn,
-              !changeActionAsIcon && styles.changePokemonBtnWithLabel,
-              changeActionAsIcon && styles.changePokemonBtnIconOnly,
-              variant === 'ours' ? styles.changePokemonBtnOurs : styles.changePokemonBtnRival,
-            ]}
-            onPress={onPressChangePokemon}
-          >
-            {changeActionAsIcon ? (
-              <Ionicons name="swap-horizontal" size={22} color={changeIconColor} />
-            ) : (
-              <Text
+        <View style={styles.cardHeaderActions}>
+          {summary &&
+          compareOpponents != null &&
+          compareOpponents.length > 0 &&
+          compareOtherColumnLabel != null ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('card.compareStatsA11y')}
+                onPress={() => setCompareModalOpen(true)}
                 style={[
-                  styles.changePokemonBtnText,
-                  variant === 'ours'
-                    ? styles.changePokemonBtnTextOurs
-                    : styles.changePokemonBtnTextRival,
+                  styles.changePokemonBtn,
+                  !changeActionAsIcon && styles.changePokemonBtnWithLabel,
+                  changeActionAsIcon && styles.changePokemonBtnIconOnly,
+                  variant === 'ours' ? styles.changePokemonBtnOurs : styles.changePokemonBtnRival,
                 ]}
-                numberOfLines={2}
               >
-                {changeActionLabel}
-              </Text>
-            )}
-          </Pressable>
-        ) : null}
+                {changeActionAsIcon ? (
+                  <Ionicons name="git-compare-outline" size={22} color={changeIconColor} />
+                ) : (
+                  <View style={styles.headerActionLabelRow}>
+                    <Ionicons name="git-compare-outline" size={18} color={changeIconColor} />
+                    <Text
+                      style={[
+                        styles.changePokemonBtnText,
+                        styles.headerActionLabelText,
+                        variant === 'ours' ? styles.changePokemonBtnTextOurs : styles.changePokemonBtnTextRival,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t('card.compareStats')}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <PokemonCompareModal
+                visible={compareModalOpen}
+                onClose={() => setCompareModalOpen(false)}
+                selfVariant={variant}
+                selfDisplayName={titleDisplay}
+                selfSpriteUrl={summary.spriteUrl}
+                selfStats={summary.stats}
+                otherColumnLabel={compareOtherColumnLabel}
+                opponents={compareOpponents}
+              />
+            </>
+          ) : null}
+          {onPressChangePokemon && !loading ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={changeActionLabel}
+              style={[
+                styles.changePokemonBtn,
+                !changeActionAsIcon && styles.changePokemonBtnWithLabel,
+                changeActionAsIcon && styles.changePokemonBtnIconOnly,
+                variant === 'ours' ? styles.changePokemonBtnOurs : styles.changePokemonBtnRival,
+              ]}
+              onPress={onPressChangePokemon}
+            >
+              {changeActionAsIcon ? (
+                <Ionicons name="swap-horizontal" size={22} color={changeIconColor} />
+              ) : (
+                <View style={styles.headerActionLabelRow}>
+                  <Ionicons name="swap-horizontal" size={18} color={changeIconColor} />
+                  <Text
+                    style={[
+                      styles.changePokemonBtnText,
+                      styles.headerActionLabelText,
+                      variant === 'ours' ? styles.changePokemonBtnTextOurs : styles.changePokemonBtnTextRival,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {changeActionLabel}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {loading ? (
@@ -145,40 +235,43 @@ export function TeamPokemonBattleCard({
             <Image
               source={{ uri: summary.spriteUrl }}
               style={styles.sprite}
-              accessibilityLabel={summary.name}
+              accessibilityLabel={summary.displayName}
             />
           ) : null}
 
           <View style={styles.typesRow}>
-            {summary.types.map((t) => (
-              <View key={t.name} style={styles.typeWrap}>
-                {t.iconUrl ? (
+            {summary.types.map((slot) => (
+              <View key={slot.name} style={styles.typeWrap}>
+                {slot.iconUrl ? (
                   <Image
-                    source={{ uri: t.iconUrl }}
+                    source={{ uri: slot.iconUrl }}
                     style={styles.typeIcon}
-                    accessibilityLabel={t.name}
+                    accessibilityLabel={slot.displayName}
                   />
                 ) : (
-                  <Text style={styles.typeFallback}>{t.name}</Text>
+                  <Text style={styles.typeFallback}>{slot.displayName}</Text>
                 )}
               </View>
             ))}
           </View>
 
           <Text style={styles.meta}>
-            {summary.heightDm / 10} m · {summary.weightHg / 10} kg · Exp. base{' '}
-            {summary.baseExperience}
+            {t('card.meta', {
+              height: summary.heightDm / 10,
+              weight: summary.weightHg / 10,
+              exp: summary.baseExperience,
+            })}
           </Text>
 
           {summary.megaForms.length > 0 ? (
             <View style={styles.megaRow}>
-              <Text style={styles.megaBadgeText}>Mega evolución (PokéAPI)</Text>
+              <Text style={styles.megaBadgeText}>{t('card.megaBadge')}</Text>
             </View>
           ) : null}
 
           {formOptions.length > 0 && onSelectFormSlug ? (
             <>
-              <Text style={styles.sectionTitle}>Forma en combate</Text>
+              <Text style={styles.sectionTitle}>{t('card.battleForm')}</Text>
               <View style={styles.formChips}>
                 {formOptions.map((opt) => {
                   const selected = formSlug === opt.slug;
@@ -213,57 +306,84 @@ export function TeamPokemonBattleCard({
             </>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Habilidades posibles</Text>
+          <Text style={styles.sectionTitle}>{t('card.abilitiesSection')}</Text>
           {summary.abilities.length === 0 ? (
             <Text style={styles.muted}>—</Text>
           ) : (
-            summary.abilities.map((a) => (
-              <View key={`${a.slot}-${a.name}`} style={styles.abilityBlock}>
-                <Text style={styles.abilityLine}>
-                  {formatAbilityLabel(a.name)}
-                  {a.isHidden ? ' · oculta' : ''}
-                </Text>
-                {a.shortEffect ? <Text style={styles.abilitySubtitle}>{a.shortEffect}</Text> : null}
-              </View>
-            ))
+            summary.abilities.map((a) => {
+              const extra = abilityExtras[a.name];
+              const lineName = extra?.displayName ?? a.displayName;
+              const effect = extra?.shortEffect ?? a.shortEffect;
+              return (
+                <View key={`${a.slot}-${a.name}`} style={styles.abilityBlock}>
+                  <Text style={styles.abilityLine}>
+                    {lineName}
+                    {a.isHidden ? t('card.hiddenAbility') : ''}
+                  </Text>
+                  {effect ? <Text style={styles.abilitySubtitle}>{effect}</Text> : null}
+                </View>
+              );
+            })
           )}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('card.movesA11y', { count: moveNames.length })}
+            onPress={() => setMovesModalOpen(true)}
+            style={[
+              styles.movesBlock,
+              variant === 'ours' ? styles.movesBlockOurs : styles.movesBlockRival,
+            ]}
+          >
+            <View style={styles.movesBlockTextWrap}>
+              <Text style={styles.movesBlockTitle}>{t('card.movesTitle')}</Text>
+              <Text style={styles.movesBlockSubtitle}>
+                {moveNames.length > 0
+                  ? t('card.movesSubtitle', { count: moveNames.length })
+                  : t('card.movesSubtitleEmpty')}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={variant === 'ours' ? theme.colors.oursAccent : theme.colors.rivalAccent}
+            />
+          </Pressable>
+          <PokemonMovesModal
+            visible={movesModalOpen}
+            onClose={() => setMovesModalOpen(false)}
+            pokemonTitle={titleDisplay}
+            moveNames={moveNames}
+            variant={variant}
+            loadMoves={loadMoves}
+          />
 
           <View style={styles.sectionTitleRow}>
             <Text style={[styles.sectionTitle, styles.sectionTitleInline]} numberOfLines={2}>
-              Stats base y rango (niv. {POKEMON_STAT_RANGE_DISPLAY_LEVEL})
+              {t('card.statsSection', { level: POKEMON_STAT_RANGE_DISPLAY_LEVEL })}
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Información sobre stats base y rango"
+              accessibilityLabel={t('card.statsInfoA11y')}
               hitSlop={10}
               onPress={() => setStatsInfoOpen(true)}
               style={styles.statsInfoBtn}
             >
-              <Ionicons name="information-circle-outline" size={20} color="#71717a" />
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.ionIconMuted} />
             </Pressable>
           </View>
-          <Modal
-            visible={statsInfoOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setStatsInfoOpen(false)}
-          >
-            <View style={styles.statsInfoModalWrap}>
-              <TouchableWithoutFeedback onPress={() => setStatsInfoOpen(false)}>
-                <View style={styles.statsInfoBackdrop} />
-              </TouchableWithoutFeedback>
-              <View style={styles.statsInfoCardWrap} pointerEvents="box-none">
-                <View style={styles.statsInfoCard}>
-                  <Text style={styles.statsInfoTitle}>
-                    Stats base y rango (niv. {POKEMON_STAT_RANGE_DISPLAY_LEVEL})
-                  </Text>
-                  <Text style={styles.statsInfoBody}>
-                    {statsSectionInfoCopy(POKEMON_STAT_RANGE_DISPLAY_LEVEL)}
-                  </Text>
-                </View>
+          <BackdropModal visible={statsInfoOpen} onClose={() => setStatsInfoOpen(false)}>
+            <View style={styles.statsInfoCardWrap} pointerEvents="box-none">
+              <View style={styles.statsInfoCard}>
+                <Text style={styles.statsInfoTitle}>
+                  {t('card.statsInfoTitle', { level: POKEMON_STAT_RANGE_DISPLAY_LEVEL })}
+                </Text>
+                <Text style={styles.statsInfoBody}>
+                  {t('card.statsInfoBody', { level: POKEMON_STAT_RANGE_DISPLAY_LEVEL })}
+                </Text>
               </View>
             </View>
-          </Modal>
+          </BackdropModal>
           {battleStatsForRange.map((s) => {
             const { min: statMin, max: statMax } = pokemonStatMinMaxIvEvNatureSpread({
               base: s.baseStat,
@@ -280,7 +400,7 @@ export function TeamPokemonBattleCard({
               variant === 'ours' ? styles.statRangeBandOurs : styles.statRangeBandRival;
             return (
               <View key={s.name} style={styles.statRow}>
-                <Text style={styles.statLabel}>{statLabelEs(s.name)}</Text>
+                <Text style={styles.statLabel}>{s.displayName}</Text>
                 <View style={styles.statBarStack}>
                   <View style={styles.statTrack}>
                     <View
@@ -310,7 +430,7 @@ export function TeamPokemonBattleCard({
                   <Text style={styles.statValue}>{s.baseStat}</Text>
                   <Text
                     style={styles.statRangeValues}
-                    accessibilityLabel={`Rango ${statMin} a ${statMax}`}
+                    accessibilityLabel={t('card.rangeA11y', { min: statMin, max: statMax })}
                   >
                     {statMin}–{statMax}
                   </Text>
@@ -324,72 +444,93 @@ export function TeamPokemonBattleCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   card: {
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#fafafa',
+    borderRadius: theme.radius.lg,
+    padding: theme.space.md,
+    marginBottom: theme.space.md,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#e4e4e7',
+    borderColor: theme.colors.border,
   },
   accentOurs: {
     borderLeftWidth: 4,
-    borderLeftColor: '#2563eb',
+    borderLeftColor: theme.colors.primary,
   },
   accentRival: {
     borderLeftWidth: 4,
-    borderLeftColor: '#dc2626',
+    borderLeftColor: theme.colors.rivalAccentStrong,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 6,
+    gap: theme.space.sm,
+    marginBottom: theme.space.smd,
   },
   cardHeaderLeft: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: theme.space.sm,
     minWidth: 0,
+  },
+  cardHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.smd,
+    flexShrink: 1,
+    minWidth: 0,
+    justifyContent: 'flex-end',
   },
   slotBadge: {
     minWidth: 26,
     height: 26,
-    borderRadius: 6,
+    borderRadius: theme.radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   slotOurs: {
-    backgroundColor: '#2563eb',
+    backgroundColor: theme.colors.primary,
   },
   slotRival: {
-    backgroundColor: '#dc2626',
+    backgroundColor: theme.colors.rivalAccentStrong,
   },
   slotBadgeText: {
-    color: '#fff',
+    color: theme.colors.onPrimary,
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: theme.fontSize.body,
   },
   name: {
     flex: 1,
-    fontSize: 15,
+    fontSize: theme.fontSize.screenTitle,
     fontWeight: '700',
-    color: '#18181b',
+    color: theme.colors.text,
   },
   changePokemonBtn: {
     flexShrink: 0,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: theme.space.smd,
+    paddingHorizontal: theme.space.sm,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   changePokemonBtnWithLabel: {
-    maxWidth: '42%',
+    flexShrink: 1,
+    minWidth: 0,
+    paddingHorizontal: theme.space.md,
+  },
+  headerActionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.space.smd,
+    minWidth: 0,
+  },
+  headerActionLabelText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   changePokemonBtnIconOnly: {
     minWidth: 44,
@@ -398,32 +539,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   changePokemonBtnOurs: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#93c5fd',
+    backgroundColor: theme.colors.oursBgTint,
+    borderColor: theme.colors.oursBorderSoft,
   },
   changePokemonBtnRival: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    backgroundColor: theme.colors.rivalBgTint,
+    borderColor: theme.colors.rivalBorderSoft,
   },
   changePokemonBtnText: {
-    fontSize: 11,
+    fontSize: theme.fontSize.caption,
     fontWeight: '700',
     textAlign: 'center',
   },
   changePokemonBtnTextOurs: {
-    color: '#1d4ed8',
+    color: theme.colors.oursAccent,
   },
   changePokemonBtnTextRival: {
-    color: '#b91c1c',
+    color: theme.colors.rivalAccent,
   },
   centerPad: {
-    paddingVertical: 16,
+    paddingVertical: theme.space.xl,
     alignItems: 'center',
   },
   errorInline: {
-    color: '#b91c1c',
-    fontSize: 13,
-    marginBottom: 6,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.body,
+    marginBottom: theme.space.smd,
   },
   sprite: {
     width: 88,
@@ -454,26 +595,26 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   meta: {
-    fontSize: 12,
-    color: '#52525b',
+    fontSize: theme.fontSize.bodySm,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: theme.space.sm,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: theme.fontSize.titleSm,
     fontWeight: '700',
-    color: '#3f3f46',
-    marginTop: 6,
-    marginBottom: 4,
+    color: theme.colors.textSecondary,
+    marginTop: theme.space.smd,
+    marginBottom: theme.space.xs,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.35,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    marginBottom: 4,
+    gap: theme.space.smd,
+    marginTop: theme.space.smd,
+    marginBottom: theme.space.xs,
     flexWrap: 'wrap',
   },
   sectionTitleInline: {
@@ -483,86 +624,114 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   statsInfoBtn: {
-    padding: 2,
-  },
-  statsInfoModalWrap: {
-    flex: 1,
-  },
-  statsInfoBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    padding: theme.space.xxs,
   },
   statsInfoCardWrap: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: theme.space.xxxl,
     pointerEvents: 'box-none',
   },
   statsInfoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.xl,
+    padding: theme.space.xl,
     maxWidth: 340,
     width: '100%',
     borderWidth: 1,
-    borderColor: '#e4e4e7',
-    shadowColor: '#000',
+    borderColor: theme.colors.border,
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 6,
   },
   statsInfoTitle: {
-    fontSize: 14,
+    fontSize: theme.fontSize.bodyLg,
     fontWeight: '700',
-    color: '#18181b',
-    marginBottom: 10,
+    color: theme.colors.text,
+    marginBottom: theme.space.md,
   },
   statsInfoBody: {
-    fontSize: 13,
+    fontSize: theme.fontSize.body,
     lineHeight: 19,
-    color: '#3f3f46',
+    color: theme.colors.textSecondary,
   },
   muted: {
-    fontSize: 13,
-    color: '#71717a',
+    fontSize: theme.fontSize.body,
+    color: theme.colors.textMuted,
   },
   abilityBlock: {
-    marginBottom: 8,
+    marginBottom: theme.space.sm,
   },
   abilityLine: {
-    fontSize: 13,
+    fontSize: theme.fontSize.body,
     fontWeight: '600',
-    color: '#27272a',
+    color: theme.colors.textInk,
     textTransform: 'capitalize',
   },
   abilitySubtitle: {
-    fontSize: 11,
+    fontSize: theme.fontSize.caption,
     lineHeight: 15,
-    color: '#71717a',
-    marginTop: 2,
+    color: theme.colors.textMuted,
+    marginTop: theme.space.xxs,
+  },
+  movesBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.space.md,
+    marginTop: theme.space.sm,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.mdLg,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+  },
+  movesBlockOurs: {
+    backgroundColor: theme.colors.oursBgSoft,
+    borderColor: theme.colors.oursBorderSoft,
+  },
+  movesBlockRival: {
+    backgroundColor: theme.colors.rivalBgSoft,
+    borderColor: theme.colors.rivalBorderSoft,
+  },
+  movesBlockTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  movesBlockTitle: {
+    fontSize: theme.fontSize.body,
+    fontWeight: '800',
+    color: theme.colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  movesBlockSubtitle: {
+    fontSize: theme.fontSize.caption,
+    color: theme.colors.textSecondary,
+    marginTop: theme.space.xxs,
   },
   statRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    gap: theme.space.smd,
+    marginBottom: theme.space.smd,
   },
   statLabel: {
     width: 56,
-    fontSize: 11,
-    color: '#52525b',
+    fontSize: theme.fontSize.caption,
+    color: theme.colors.textSecondary,
     alignSelf: 'center',
   },
   statBarStack: {
     flex: 1,
-    gap: 4,
+    gap: theme.space.xs,
   },
   statTrack: {
     height: 6,
-    borderRadius: 3,
-    backgroundColor: '#e4e4e7',
+    borderRadius: theme.radius.xs,
+    backgroundColor: theme.colors.statTrack,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -571,7 +740,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
   },
   statRangeToMaxDimmed: {
     opacity: 0.24,
@@ -580,83 +749,83 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
   },
   statRangeSpreadOpaque: {
     opacity: 0.58,
   },
   statBaseFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
   },
   statRangeBandOurs: {
-    backgroundColor: '#6366f1',
+    backgroundColor: theme.colors.oursStatBar,
   },
   statRangeBandRival: {
-    backgroundColor: '#dc2626',
+    backgroundColor: theme.colors.rivalStatBar,
   },
   statValuesCol: {
     minWidth: 52,
     alignItems: 'flex-end',
   },
   statValue: {
-    fontSize: 12,
+    fontSize: theme.fontSize.bodySm,
     fontWeight: '600',
-    color: '#18181b',
+    color: theme.colors.text,
     textAlign: 'right',
   },
   statRangeValues: {
-    fontSize: 10,
+    fontSize: theme.fontSize.micro,
     fontWeight: '500',
-    color: '#52525b',
+    color: theme.colors.textSecondary,
     textAlign: 'right',
     marginTop: 1,
   },
   megaRow: {
     alignSelf: 'center',
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 6,
+    backgroundColor: theme.colors.warningBg,
+    paddingHorizontal: theme.space.md,
+    paddingVertical: theme.space.xs,
+    borderRadius: theme.radius.md,
+    marginBottom: theme.space.smd,
   },
   megaBadgeText: {
-    fontSize: 11,
+    fontSize: theme.fontSize.caption,
     fontWeight: '700',
-    color: '#92400e',
+    color: theme.colors.warningText,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
   formChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 4,
+    gap: theme.space.smd,
+    marginBottom: theme.space.xs,
   },
   formChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: '#f4f4f5',
+    paddingVertical: theme.space.smd,
+    paddingHorizontal: theme.space.md,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.neutralSurface,
     borderWidth: 1,
-    borderColor: '#e4e4e7',
+    borderColor: theme.colors.border,
     maxWidth: '100%',
   },
   formChipSelected: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   formChipAccentOurs: {
-    borderColor: '#2563eb',
+    borderColor: theme.colors.primary,
   },
   formChipAccentRival: {
-    borderColor: '#dc2626',
+    borderColor: theme.colors.rivalAccentStrong,
   },
   formChipLabel: {
-    fontSize: 12,
+    fontSize: theme.fontSize.bodySm,
     fontWeight: '600',
-    color: '#3f3f46',
+    color: theme.colors.textSecondary,
   },
   formChipLabelSelected: {
-    color: '#18181b',
+    color: theme.colors.text,
   },
-});
+}));
