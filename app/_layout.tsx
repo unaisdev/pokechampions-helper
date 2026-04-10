@@ -1,12 +1,17 @@
+import '@src/shared/theme/unistyles';
+import '@src/shared/i18n';
+
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
+import { Platform } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { hydrateThemeFromStorage } from '@src/shared/theme/theme-preference';
+import { useUnistyles } from 'react-native-unistyles';
 import { vexo } from 'vexo-analytics';
 
 // Initialize Vexo at the root level, outside of any component
@@ -40,6 +45,10 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
+    void hydrateThemeFromStorage();
+  }, []);
+
+  useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
     }
@@ -53,10 +62,27 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { theme, rt } = useUnistyles();
+  /** `rt.colorScheme` sigue al sistema; `rt.themeName` sigue a Unistyles (preferencia guardada o sistema). */
+  const navigationTheme = (rt.themeName ?? 'light') === 'dark' ? DarkTheme : DefaultTheme;
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+    document.documentElement.classList.add('app-bootstrapped');
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+    document.body.style.backgroundColor = theme.colors.background;
+    document.documentElement.style.colorScheme = rt.themeName === 'dark' ? 'dark' : 'light';
+  }, [theme.colors.background, rt.themeName]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

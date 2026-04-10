@@ -1,5 +1,7 @@
+import '@src/shared/theme/unistyles-register';
+
 import { Link, Stack } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 
 import { Text, View } from '@/components/Themed';
 
@@ -18,23 +20,24 @@ export default function NotFoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: theme.space.xxxl,
   },
   title: {
-    fontSize: 20,
+    fontSize: theme.fontSize.hero,
     fontWeight: 'bold',
+    color: theme.colors.text,
   },
   link: {
     marginTop: 15,
     paddingVertical: 15,
   },
   linkText: {
-    fontSize: 14,
-    color: '#2e78b7',
+    fontSize: theme.fontSize.bodyLg,
+    color: theme.colors.link,
   },
-});
+}));

@@ -1,11 +1,11 @@
+import '@src/shared/theme/unistyles-register';
+
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 
 import { ExternalLink } from './ExternalLink';
 import { MonoText } from './StyledText';
 import { Text, View } from './Themed';
-
-import Colors from '@/constants/Colors';
 
 export default function EditScreenInfo({ path }: { path: string }) {
   return (
@@ -41,7 +41,7 @@ export default function EditScreenInfo({ path }: { path: string }) {
           style={styles.helpLink}
           href="https://docs.expo.io/get-started/create-a-new-app/#opening-the-app-on-your-phonetablet"
         >
-          <Text style={styles.helpLinkText} lightColor={Colors.light.tint}>
+          <Text style={styles.helpLinkText}>
             Tap here if your app does not automatically update after making changes
           </Text>
         </ExternalLink>
@@ -50,7 +50,7 @@ export default function EditScreenInfo({ path }: { path: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   getStartedContainer: {
     alignItems: 'center',
     marginHorizontal: 50,
@@ -59,11 +59,11 @@ const styles = StyleSheet.create({
     marginVertical: 7,
   },
   codeHighlightContainer: {
-    borderRadius: 3,
-    paddingHorizontal: 4,
+    borderRadius: theme.radius.xs,
+    paddingHorizontal: theme.space.xs,
   },
   getStartedText: {
-    fontSize: 17,
+    fontSize: theme.fontSize.modalTitle,
     lineHeight: 24,
     textAlign: 'center',
   },
@@ -77,5 +77,6 @@ const styles = StyleSheet.create({
   },
   helpLinkText: {
     textAlign: 'center',
+    color: theme.colors.link,
   },
-});
+}));

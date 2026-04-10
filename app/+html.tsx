@@ -21,8 +21,12 @@ export default function Root({ children }: { children: React.ReactNode }) {
         */}
         <ScrollViewStyleReset />
 
-        {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
-        <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
+        {/*
+          FOUC mitigation (web + Unistyles): hide #root until the root layout runs useLayoutEffect
+          after the first commit where RN Web + Unistyles attach generated classes.
+          Body colors follow prefers-color-scheme until app/_layout syncs stored theme.
+        */}
+        <style dangerouslySetInnerHTML={{ __html: bodyFallbackBackground }} />
         {/* Add any additional <head> elements that you want globally available on web... */}
       </head>
       <body>{children}</body>
@@ -30,12 +34,27 @@ export default function Root({ children }: { children: React.ReactNode }) {
   );
 }
 
-const responsiveBackground = `
-body {
-  background-color: #fff;
+/** Matches `lightColors` / `darkColors` in src/shared/theme/palettes.ts */
+const bodyFallbackBackground = `
+html {
+  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   body {
-    background-color: #000;
+    background-color: #09090b;
+    color: #fafafa;
   }
-}`;
+}
+@media (prefers-color-scheme: light) {
+  body {
+    background-color: #ffffff;
+    color: #18181b;
+  }
+}
+html:not(.app-bootstrapped) #root {
+  visibility: hidden;
+}
+html.app-bootstrapped #root {
+  visibility: visible;
+}
+`;

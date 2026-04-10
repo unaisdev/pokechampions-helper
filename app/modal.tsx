@@ -1,5 +1,8 @@
+import '@src/shared/theme/unistyles-register';
+
 import { StatusBar } from 'expo-status-bar';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 
 import EditScreenInfo from '@/components/EditScreenInfo';
 import { Text, View } from '@/components/Themed';
@@ -17,19 +20,20 @@ export default function ModalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: theme.fontSize.hero,
     fontWeight: 'bold',
+    color: theme.colors.text,
   },
   separator: {
     marginVertical: 30,
     height: 1,
     width: '80%',
   },
-});
+}));
