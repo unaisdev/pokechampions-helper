@@ -50,7 +50,7 @@
     "closeA11y": "Cerrar ajustes"
   },
   "battle": {
-    "screenTitle": "Previa de equipos",
+    "screenTitle": "Primero carga tu combate",
     "lead": "Importa el JSON que generes en Gemini con la captura del juego. La app muestra ambos equipos como en la pantalla de combate, con datos de PokéAPI para cada Pokémon.",
     "heroExampleCaption": "Ejemplo de imagen para Gemini (tu equipo a la izquierda, rival a la derecha):",
     "heroExampleA11y": "Ejemplo de pantalla previa de combate con dos columnas de Pokémon",

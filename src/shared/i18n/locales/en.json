@@ -50,7 +50,7 @@
     "closeA11y": "Close settings"
   },
   "battle": {
-    "screenTitle": "Team preview",
+    "screenTitle": "Load your battle first",
     "lead": "Import the JSON you generate in Gemini from your game screenshot. The app shows both teams like the battle screen, with PokéAPI data for each Pokémon.",
     "heroExampleCaption": "Example image for Gemini (your team on the left, rival on the right):",
     "heroExampleA11y": "Example battle preview screen with two columns of Pokémon",

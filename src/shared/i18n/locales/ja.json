@@ -50,7 +50,7 @@
     "closeA11y": "設定を閉じる"
   },
   "battle": {
-    "screenTitle": "チームプレビュー",
+    "screenTitle": "まずバトルを読み込んでください",
     "lead": "ゲーム画面のスクショから Gemini で生成した JSON を取り込んでください。アプリはバトル画面のように両チームを表示し、各ポケモンは PokéAPI のデータで補完します。",
     "heroExampleCaption": "Gemini 用の画像例（左が自分のチーム、右が相手）:",
     "heroExampleA11y": "ポケモンが2列に並んだバトルプレビュー画面の例",

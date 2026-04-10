@@ -45,6 +45,11 @@ import { appLocaleToPokeApiLanguage } from '@src/shared/lib/app-locale-to-pokeap
 import { PokemonNetworkError, PokemonNotFoundError } from '@src/shared/lib/errors';
 import { modalCardSizingStyle } from '@src/shared/lib/modal-layout';
 import { BackdropModal } from '@src/shared/ui/BackdropModal';
+import {
+  TAB_SCREEN_DESKTOP_MAX_WIDTH,
+  TAB_SCREEN_DESKTOP_MIN_WIDTH,
+  WEB_DESKTOP_SPLIT_MIN_WIDTH,
+} from '@src/shared/ui/TabScreenContentFrame';
 import { formatPokemonSlugAsTitle, normalizePokemonNameQuery } from '@src/shared/lib/pokemon-name';
 
 /** Ancho por debajo del cual los equipos pasan a pestañas inferiores a pantalla completa (ancho). */
@@ -73,9 +78,18 @@ export function BattleScanScreen() {
   const { t, i18n } = useTranslation();
   const { theme } = useUnistyles();
   const { width: windowWidth } = useWindowDimensions();
+  const isWebDesktopSplitLayout =
+    Platform.OS === 'web' && windowWidth >= WEB_DESKTOP_SPLIT_MIN_WIDTH;
+  /** Ancho útil del tab (columna estrecha 640–899px web; si no, viewport). */
+  const tabLayoutWidth =
+    Platform.OS === 'web' &&
+    windowWidth >= TAB_SCREEN_DESKTOP_MIN_WIDTH &&
+    !isWebDesktopSplitLayout
+      ? Math.min(windowWidth, TAB_SCREEN_DESKTOP_MAX_WIDTH)
+      : windowWidth;
   const insets = useSafeAreaInsets();
   const pokeApiLanguage = appLocaleToPokeApiLanguage(i18n.language);
-  const compactTeamArena = windowWidth < COMPACT_TEAM_ARENA_BREAKPOINT;
+  const compactTeamArena = tabLayoutWidth < COMPACT_TEAM_ARENA_BREAKPOINT;
   const geminiModalCardSizing = useMemo(
     () => modalCardSizingStyle(windowWidth, { maxWidth: 640 }),
     [windowWidth],
@@ -397,8 +411,21 @@ export function BattleScanScreen() {
     </View>
   );
 
-  const headerThroughActions = (
-    <>
+  const renderOnboardingBlock = (preloadCentered: boolean) => {
+    const c = preloadCentered ? styles.preloadCenterText : undefined;
+    const titleEl = preloadCentered ? (
+      <View style={styles.preloadTitleBand}>
+        <Pressable
+          style={styles.preloadSettingsBtn}
+          onPress={() => setSettingsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.openA11y')}
+        >
+          <Ionicons name="settings-outline" size={26} color={theme.colors.text} />
+        </Pressable>
+        <Text style={[styles.screenTitle, styles.preloadScreenTitle, c]}>{t('battle.screenTitle')}</Text>
+      </View>
+    ) : (
       <View style={styles.titleRow}>
         <Text style={styles.screenTitle}>{t('battle.screenTitle')}</Text>
         <Pressable
@@ -410,39 +437,52 @@ export function BattleScanScreen() {
           <Ionicons name="settings-outline" size={26} color={theme.colors.text} />
         </Pressable>
       </View>
-      <Text style={styles.lead}>{t('battle.lead')}</Text>
+    );
 
-      <Text style={styles.heroExampleCaption}>{t('battle.heroExampleCaption')}</Text>
-      <View style={styles.heroExampleImageWrap}>
-        <Image
-          source={GEMINI_TEAM_SCAN_EXAMPLE_SOURCE}
-          style={styles.heroExampleImage}
-          resizeMode="contain"
-          accessibilityLabel={t('battle.heroExampleA11y')}
-        />
-      </View>
+    const btnRandomStyle = preloadCentered
+      ? [styles.randomDemoBtn, styles.preloadFullWidthBtn]
+      : styles.randomDemoBtn;
+    const btnPrimaryStyle = preloadCentered
+      ? [styles.primaryBtn, styles.preloadFullWidthBtn]
+      : styles.primaryBtn;
 
-      <Pressable
-        style={styles.randomDemoBtn}
-        onPress={() => {
-          setTeamScan(randomDemoTeamScan());
-          setScrollToTeamsRequestId((n) => n + 1);
-        }}
-      >
-        <Text style={styles.randomDemoBtnText}>{t('battle.randomDemo')}</Text>
-      </Pressable>
+    return (
+      <>
+        {titleEl}
+        <Text style={[styles.lead, c]}>{t('battle.lead')}</Text>
 
-      <Pressable
-        style={styles.primaryBtn}
-        onPress={() => {
-          setGeminiModalError(null);
-          setGeminiModalVisible(true);
-        }}
-      >
-        <Text style={styles.primaryBtnText}>{t('battle.importJson')}</Text>
-      </Pressable>
-    </>
-  );
+        <Text style={[styles.heroExampleCaption, c]}>{t('battle.heroExampleCaption')}</Text>
+        <View style={[styles.heroExampleImageWrap, preloadCentered && styles.preloadHeroImageWrap]}>
+          <Image
+            source={GEMINI_TEAM_SCAN_EXAMPLE_SOURCE}
+            style={styles.heroExampleImage}
+            resizeMode="contain"
+            accessibilityLabel={t('battle.heroExampleA11y')}
+          />
+        </View>
+
+        <Pressable
+          style={btnRandomStyle}
+          onPress={() => {
+            setTeamScan(randomDemoTeamScan());
+            setScrollToTeamsRequestId((n) => n + 1);
+          }}
+        >
+          <Text style={styles.randomDemoBtnText}>{t('battle.randomDemo')}</Text>
+        </Pressable>
+
+        <Pressable
+          style={btnPrimaryStyle}
+          onPress={() => {
+            setGeminiModalError(null);
+            setGeminiModalVisible(true);
+          }}
+        >
+          <Text style={styles.primaryBtnText}>{t('battle.importJson')}</Text>
+        </Pressable>
+      </>
+    );
+  };
 
   const loadingBannerEl =
     teamScan && anyLoading ? (
@@ -467,7 +507,7 @@ export function BattleScanScreen() {
 
   const scrollBodyDefault = (
     <>
-      {headerThroughActions}
+      {renderOnboardingBlock(false)}
       {teamScan ? (
         <>
           <View onLayout={onWideTeamsSectionLayout}>
@@ -487,7 +527,13 @@ export function BattleScanScreen() {
     </>
   );
 
-  const compactContentWidth = Math.max(0, windowWidth - 32);
+  const compactContentWidth = Math.max(0, tabLayoutWidth - 32);
+
+  const webDesktopTeamsSplit =
+    Boolean(teamScan) && isWebDesktopSplitLayout && !compactTeamArena;
+
+  /** Web ancho y sin equipos: bloque onboarding centrado verticalmente al 30 % del ancho. */
+  const showPreloadCenteredEmpty = !teamScan && isWebDesktopSplitLayout;
 
   return (
     <>
@@ -507,12 +553,53 @@ export function BattleScanScreen() {
           scrollToTeamsRequestId={scrollToTeamsRequestId}
           leadingScrollContent={
             <>
-              {headerThroughActions}
+              {renderOnboardingBlock(false)}
               {loadingBannerEl}
             </>
           }
           trailingScrollContent={clearTeamsPressable}
         />
+      ) : webDesktopTeamsSplit ? (
+        <View style={styles.desktopSplitRoot}>
+          <ScrollView
+            style={styles.desktopSplitScrollPreview}
+            contentContainerStyle={[styles.scroll, styles.desktopSplitPaneContent]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            {renderOnboardingBlock(false)}
+          </ScrollView>
+          <ScrollView
+            ref={mainScrollRef}
+            style={styles.desktopSplitScrollTeams}
+            contentContainerStyle={[styles.scroll, styles.desktopSplitPaneContent]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            <View onLayout={onWideTeamsSectionLayout}>
+              {loadingBannerEl}
+              <View style={styles.arena}>
+                {ourTeamColumn}
+                {rivalTeamColumn}
+              </View>
+            </View>
+            {clearTeamsPressable}
+          </ScrollView>
+        </View>
+      ) : showPreloadCenteredEmpty ? (
+        <View style={styles.preloadRoot}>
+          <ScrollView
+            style={styles.preloadScroll}
+            contentContainerStyle={styles.preloadScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            <View style={styles.preloadColumn}>
+              {renderOnboardingBlock(true)}
+              <Text style={[styles.emptyHint, styles.preloadCenterText]}>{t('battle.emptyHint')}</Text>
+            </View>
+          </ScrollView>
+        </View>
       ) : (
         <ScrollView
           ref={mainScrollRef}
@@ -614,6 +701,82 @@ const styles = StyleSheet.create((theme) => ({
   scroll: {
     padding: theme.space.xl,
     paddingBottom: theme.space.bottomXL,
+  },
+  /** Web ≥900px: previa + acciones a la izquierda, equipos a la derecha. */
+  desktopSplitRoot: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: theme.space.lg,
+    minHeight: 0,
+  },
+  /** Prevía + botones: 30 % del ancho del área de split. */
+  desktopSplitScrollPreview: {
+    width: '30%',
+    flexGrow: 0,
+    flexShrink: 0,
+    minWidth: 0,
+  },
+  /** Columna de equipos: resto del ancho. */
+  desktopSplitScrollTeams: {
+    flex: 1,
+    minWidth: 0,
+  },
+  desktopSplitPaneContent: {
+    flexGrow: 1,
+  },
+  /** Sin equipos en web ancho: columna al 30 %, contenido centrado en el eje vertical. */
+  preloadRoot: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+  },
+  preloadScroll: {
+    flex: 1,
+  },
+  preloadScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.space.xxl,
+    paddingHorizontal: theme.space.xl,
+    paddingBottom: theme.space.bottomXL,
+  },
+  preloadColumn: {
+    width: '30%',
+    minWidth: 240,
+    alignItems: 'center',
+  },
+  preloadCenterText: {
+    textAlign: 'center',
+  },
+  preloadTitleBand: {
+    width: '100%',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.space.sm,
+    minHeight: 40,
+  },
+  preloadSettingsBtn: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    padding: theme.space.xs,
+    zIndex: 1,
+  },
+  preloadScreenTitle: {
+    flex: 0,
+    width: '100%',
+    paddingRight: 36,
+    textAlign: 'center',
+  },
+  preloadFullWidthBtn: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  preloadHeroImageWrap: {
+    alignSelf: 'stretch',
   },
   /** Aire al final al haber barra de pestañas de equipos fija abajo. */
   scrollCompactWithTeams: {

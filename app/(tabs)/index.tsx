@@ -1,11 +1,10 @@
-import { View } from 'react-native';
-
 import { BattleScanScreen } from '@src/features/battle-scan/ui/BattleScanScreen';
+import { TabScreenContentFrame } from '@src/shared/ui/TabScreenContentFrame';
 
 export default function ScanTabScreen() {
   return (
-    <View style={{ flex: 1 }}>
+    <TabScreenContentFrame>
       <BattleScanScreen />
-    </View>
+    </TabScreenContentFrame>
   );
 }

@@ -7,6 +7,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
 import { Text as ThemedText } from '@/components/Themed';
 import { COLLABORATOR_SOCIAL_LINKS, DEVELOPER_SOCIAL_LINKS } from '@src/shared/config/social-links';
+import { TabScreenContentFrame } from '@src/shared/ui/TabScreenContentFrame';
 
 const POKEAPI_DOCS_URL = 'https://pokeapi.co/docs/v2';
 
@@ -124,11 +125,12 @@ export default function InfoTabScreen() {
   const sectionLabelColor = isDark ? P.yellow : P.redDeep;
 
   return (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: pageBg }]}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <TabScreenContentFrame outerBackgroundColor={pageBg}>
+      <ScrollView
+        style={[styles.scroll, { backgroundColor: pageBg }]}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.hero}>
         <View style={styles.heroRow}>
           <PokeballMark size={56} />
@@ -248,6 +250,7 @@ export default function InfoTabScreen() {
         </View>
       </View>
     </ScrollView>
+    </TabScreenContentFrame>
   );
 }
 
