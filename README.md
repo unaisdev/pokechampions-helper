@@ -5,13 +5,15 @@ Expo app (React Native + TypeScript) to photograph a Pokémon battle summary, de
 ## Requirements
 
 - Node.js **≥ 20.19.4** (recommended; Expo SDK 54)
+- **Yarn** with [Corepack](https://nodejs.org/api/corepack.html) enabled (`corepack enable` once) — see [docs/guides/setup.md](docs/guides/setup.md)
 - Xcode / Android Studio for native builds with `expo prebuild`
 
 ## Development
 
 ```bash
-npm install
-npx expo start
+corepack enable   # once per machine
+yarn install
+yarn start
 ```
 
 With native modules (camera, dev client), use a device or simulator:
@@ -26,11 +28,11 @@ npx expo run:android
 
 | Script                 | Description                 |
 | ---------------------- | --------------------------- |
-| `npm start`            | Metro + Expo                |
-| `npm run lint`         | ESLint (Expo flat config)   |
-| `npm run typecheck`    | TypeScript (`tsc --noEmit`) |
-| `npm run format`       | Format with Prettier        |
-| `npm run format:check` | Verify Prettier formatting  |
+| `yarn start`           | Metro + Expo                |
+| `yarn lint`            | ESLint (Expo flat config)   |
+| `yarn typecheck`       | TypeScript (`tsc --noEmit`) |
+| `yarn format`          | Format with Prettier        |
+| `yarn format:check`    | Verify Prettier formatting  |
 
 ## Documentation
 

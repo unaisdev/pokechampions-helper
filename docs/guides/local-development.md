@@ -2,7 +2,7 @@
 
 ## Metro
 
-- `npm start` — Expo dev server; scan QR with Expo Go **only** for JS-only experiments.
+- `yarn start` — Expo dev server; scan QR with Expo Go **only** for JS-only experiments.
 - Camera and other custom native modules: use **`npx expo run:ios` / `run:android`** after `expo prebuild` has generated native projects (first run may take longer).
 
 ## Environment

@@ -5,6 +5,7 @@ Thanks for contributing to **PokeChampions Helper**. This document describes how
 ## Requirements
 
 - Node.js **≥ 20.19.4** (aligned with Expo SDK 54 / React Native)
+- **Yarn** — use `yarn` for installs and scripts; enable Corepack once (`corepack enable`) so the pinned version in `package.json` → `packageManager` is used (see [docs/guides/setup.md](docs/guides/setup.md)).
 - A GitHub account and access to the repository
 
 ## Local setup
@@ -12,18 +13,19 @@ Thanks for contributing to **PokeChampions Helper**. This document describes how
 ```bash
 git clone https://github.com/unaisdev/pokechampions-helper.git
 cd pokechampions-helper
-npm install
+corepack enable   # once per machine
+yarn install
 ```
 
 Verify the project passes basic checks:
 
 ```bash
-npm run lint
-npm run typecheck
-npm run format:check
+yarn lint
+yarn typecheck
+yarn format:check
 ```
 
-To run the app: `npm start`, then open in Expo Go or a development build (`npx expo run:ios` / `run:android`) when using native modules (camera, dev client).
+To run the app: `yarn start`, then open in Expo Go or a development build (`npx expo run:ios` / `run:android`) when using native modules (camera, dev client).
 
 ## Workflow
 

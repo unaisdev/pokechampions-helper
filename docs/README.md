@@ -14,5 +14,6 @@ Index of engineering docs for **PokeChampions Helper**. Product copy in the app 
 | Coding style       | [contributing/coding-guidelines.md](contributing/coding-guidelines.md) |
 | Testing            | [testing-strategy.md](testing-strategy.md)                             |
 | Performance        | [performance-guidelines.md](performance-guidelines.md)                 |
+| Design / UI scale  | [design/metrics.md](design/metrics.md)                                 |
 
 Repository-level contribution flow: [CONTRIBUTING.md](../CONTRIBUTING.md).
